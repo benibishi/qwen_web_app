@@ -1,3 +1,4 @@
+https://benibishi.github.io/qwen_web_app/
 # Construction Quality Control Application
 
 A web-based application for managing construction quality control inspections, specifically for framing inspections.
