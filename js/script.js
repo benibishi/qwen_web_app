@@ -1434,6 +1434,33 @@ document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('template-title').value = '';
         }
     });
+
+    // Mobile navigation toggle
+    const navToggle = document.getElementById('nav-toggle');
+    const navTabs = document.querySelector('.nav-tabs');
+
+    if (navToggle && navTabs) {
+        navToggle.addEventListener('click', function() {
+            navToggle.classList.toggle('active');
+            navTabs.classList.toggle('active');
+        });
+
+        // Close menu when clicking a nav tab
+        navTabs.querySelectorAll('.nav-tab').forEach(tab => {
+            tab.addEventListener('click', function() {
+                navToggle.classList.remove('active');
+                navTabs.classList.remove('active');
+            });
+        });
+
+        // Close menu when clicking outside
+        document.addEventListener('click', function(e) {
+            if (!navToggle.contains(e.target) && !navTabs.contains(e.target)) {
+                navToggle.classList.remove('active');
+                navTabs.classList.remove('active');
+            }
+        });
+    }
 });
 
 // ==================== TEMPLATE FUNCTIONS ====================
