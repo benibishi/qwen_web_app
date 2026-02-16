@@ -133,56 +133,55 @@ function completeInspection() {
 function loadReportsPage() {
     const reportCardsContainer = document.getElementById('report-cards-container');
     if (!reportCardsContainer) return;
-    
+
     // Get saved reports
     const allReports = JSON.parse(localStorage.getItem('inspectionReports') || '[]');
-    
+
     // Clear the container
     reportCardsContainer.innerHTML = '';
-    
+
     if (allReports.length === 0) {
-        reportCardsContainer.innerHTML = '<p>No inspection reports found. Complete an inspection to see it here.</p>';
+        reportCardsContainer.innerHTML = '<p>No inspection reports found. Create an inspection to see it here.</p>';
         return;
     }
-    
-    // Sort reports by date (newest first)
-    allReports.sort((a, b) => new Date(b.completedAt) - new Date(a.completedAt));
-    
-    // Create and display report cards
-    allReports.forEach(report => {
-        const reportCard = document.createElement('div');
-        reportCard.className = 'report-card';
 
-        // Count failed items
-        const failedCount = Object.values(report.results).filter(status => status === 'fail').length;
-        const totalCount = Object.keys(report.results).length;
-        const statusText = failedCount > 0 ? `${failedCount} failed of ${totalCount}` : 'All passed';
+    // Split reports into drafts and completed
+    const draftReports = allReports.filter(r => r.status === 'draft');
+    const completedReports = allReports.filter(r => r.status === 'completed');
 
-        // Count completed deficiencies
-        const completedDeficiencies = report.completedDeficiencies || {};
-        const completedCount = Object.values(completedDeficiencies).filter(v => v).length;
-        let completionText = '';
-        if (failedCount > 0) {
-            completionText = `<p><strong>Completed:</strong> ${completedCount} of ${failedCount} deficiencies</p>`;
-        }
+    // Sort drafts by date (newest first)
+    draftReports.sort((a, b) => new Date(b.id) - new Date(a.id));
+    // Sort completed by date (newest first)
+    completedReports.sort((a, b) => new Date(b.completedAt) - new Date(a.completedAt));
 
-        reportCard.innerHTML = `
-            <button class="btn-delete-report-card" data-report-id="${report.id}" title="Delete report"><i class="fas fa-trash"></i></button>
-            <h3>${report.jobAddress}</h3>
-            <p><strong>Superintendent:</strong> ${report.superintendent}</p>
-            <p><strong>Contractor:</strong> ${report.framingContractor}</p>
-            <p><strong>Date:</strong> ${report.date}</p>
-            <p><strong>Status:</strong> ${statusText}</p>
-            ${completionText}
-            <div class="report-actions">
-                <button class="btn-view" data-report-id="${report.id}">View Report</button>
-                <button class="btn-export" data-report-id="${report.id}">Export PDF</button>
-            </div>
-        `;
+    // Create Draft Reports section
+    if (draftReports.length > 0) {
+        const draftSection = document.createElement('div');
+        draftSection.className = 'reports-section';
+        draftSection.innerHTML = '<h2>Draft Reports</h2><div class="report-cards" id="draft-cards-container"></div>';
+        reportCardsContainer.appendChild(draftSection);
 
-        reportCardsContainer.appendChild(reportCard);
-    });
-    
+        const draftCardsContainer = draftSection.querySelector('#draft-cards-container');
+        draftReports.forEach(report => {
+            const reportCard = createReportCard(report, false);
+            draftCardsContainer.appendChild(reportCard);
+        });
+    }
+
+    // Create Completed Reports section
+    if (completedReports.length > 0) {
+        const completedSection = document.createElement('div');
+        completedSection.className = 'reports-section';
+        completedSection.innerHTML = '<h2>Completed Reports</h2><div class="report-cards" id="completed-cards-container"></div>';
+        reportCardsContainer.appendChild(completedSection);
+
+        const completedCardsContainer = completedSection.querySelector('#completed-cards-container');
+        completedReports.forEach(report => {
+            const reportCard = createReportCard(report, true);
+            completedCardsContainer.appendChild(reportCard);
+        });
+    }
+
     // Add event listeners to the buttons
     document.querySelectorAll('.btn-view').forEach(button => {
         button.addEventListener('click', function() {
@@ -190,7 +189,7 @@ function loadReportsPage() {
             viewReport(reportId);
         });
     });
-    
+
     document.querySelectorAll('.btn-export').forEach(button => {
         button.addEventListener('click', function() {
             const reportId = parseInt(this.getAttribute('data-report-id'));
@@ -208,9 +207,64 @@ function loadReportsPage() {
     });
 }
 
+// Create a report card element
+function createReportCard(report, isCompleted) {
+    const reportCard = document.createElement('div');
+    reportCard.className = 'report-card';
+
+    // Count failed items
+    const failedCount = Object.values(report.results).filter(status => status === 'fail').length;
+    const totalCount = Object.keys(report.results).length;
+    const statusText = failedCount > 0 ? `${failedCount} failed of ${totalCount}` : 'All passed';
+
+    // Count completed deficiencies
+    const completedDeficiencies = report.completedDeficiencies || {};
+    const completedCount = Object.values(completedDeficiencies).filter(v => v).length;
+    let completionText = '';
+    if (failedCount > 0 && isCompleted) {
+        completionText = `<p><strong>Completed:</strong> ${completedCount} of ${failedCount} deficiencies</p>`;
+    }
+
+    const actionsHtml = isCompleted
+        ? `<div class="report-actions">
+            <button class="btn-view" data-report-id="${report.id}">View Report</button>
+            <button class="btn-export" data-report-id="${report.id}">Export PDF</button>
+           </div>`
+        : `<div class="report-actions">
+            <button class="btn-view" data-report-id="${report.id}">View Report</button>
+           </div>`;
+
+    reportCard.innerHTML = `
+        <button class="btn-delete-report-card" data-report-id="${report.id}" title="Delete report"><i class="fas fa-trash"></i></button>
+        <h3>${report.jobAddress}</h3>
+        <p><strong>Superintendent:</strong> ${report.superintendent}</p>
+        <p><strong>Contractor:</strong> ${report.framingContractor}</p>
+        <p><strong>Date:</strong> ${report.date}</p>
+        <p><strong>Status:</strong> ${statusText}</p>
+        ${completionText}
+        ${actionsHtml}
+    `;
+
+    return reportCard;
+}
+
 // View a specific report
 function viewReport(reportId) {
-    window.location.href = `view-report.html?id=${reportId}`;
+    // Get the report to check its status
+    const allReports = JSON.parse(localStorage.getItem('inspectionReports') || '[]');
+    const report = allReports.find(r => r.id === reportId);
+
+    if (!report) {
+        alert('Report not found.');
+        return;
+    }
+
+    // If draft, redirect to edit mode; if completed, redirect to read-only view
+    if (report.status === 'draft') {
+        window.location.href = `framing-inspection.html?editId=${reportId}`;
+    } else {
+        window.location.href = `view-report.html?id=${reportId}`;
+    }
 }
 
 // Export a specific report as PDF
@@ -417,16 +471,49 @@ function loadInspectionPage() {
     // Clear the container
     itemsContainer.innerHTML = '';
 
-    // Get saved results from localStorage
-    const savedResults = getSavedResults();
-    const storedDescriptions = getStoredDeficiencyDescriptions();
+    // Check if we're editing an existing report
+    const urlParams = new URLSearchParams(window.location.search);
+    const editId = urlParams.get('editId');
+    let editingReport = null;
+    let savedResults = {};
+    let storedDescriptions = {};
+    let itemsToUse = [];
 
-    // Check if there are template items to load
-    const templateData = JSON.parse(localStorage.getItem('templateItemsForInspection') || '{}');
-    const templateItems = templateData.items || [];
+    if (editId) {
+        // Load existing report for editing
+        const allReports = JSON.parse(localStorage.getItem('inspectionReports') || '[]');
+        editingReport = allReports.find(r => r.id === parseInt(editId));
 
-    // Use template items if available, otherwise use empty array
-    const itemsToUse = templateItems.length > 0 ? templateItems : [];
+        if (editingReport) {
+            savedResults = editingReport.results || {};
+            storedDescriptions = editingReport.descriptions || {};
+            itemsToUse = editingReport.items || [];
+
+            // Set templateItemsForInspection for the deficiencies page
+            localStorage.setItem('templateItemsForInspection', JSON.stringify({
+                templateId: editingReport.templateId,
+                items: itemsToUse
+            }));
+
+            // Display report info
+            const jobAddressSpan = document.getElementById('display-job-address');
+            const superintendentSpan = document.getElementById('display-superintendent');
+            const framingContractorSpan = document.getElementById('display-framing-contractor');
+
+            if (jobAddressSpan) jobAddressSpan.textContent = editingReport.jobAddress || 'Not provided';
+            if (superintendentSpan) superintendentSpan.textContent = editingReport.superintendent || 'Not provided';
+            if (framingContractorSpan) framingContractorSpan.textContent = editingReport.framingContractor || 'Not provided';
+        }
+    }
+
+    if (!editingReport) {
+        // New inspection - use template or empty
+        const templateData = JSON.parse(localStorage.getItem('templateItemsForInspection') || '{}');
+        const templateItems = templateData.items || [];
+        itemsToUse = templateItems.length > 0 ? templateItems : [];
+        savedResults = getSavedResults();
+        storedDescriptions = getStoredDeficiencyDescriptions();
+    }
 
     // Create and display items
     itemsToUse.forEach(item => {
@@ -1130,7 +1217,11 @@ function updateButtonStates(itemId, status) {
 }
 
 // Post the inspection
-function submitInspection() {
+function submitInspection(status = 'completed') {
+    // Check if we're editing an existing report
+    const urlParams = new URLSearchParams(window.location.search);
+    const editId = urlParams.get('editId');
+
     // Get current inspection data
     const savedResults = getSavedResults();
     const storedDescriptions = getStoredDeficiencyDescriptions();
@@ -1140,28 +1231,72 @@ function submitInspection() {
     const superintendent = localStorage.getItem('superintendent') || 'Not provided';
     const framingContractor = localStorage.getItem('framingContractor') || 'Not provided';
 
-    // Create inspection report object
-    const inspectionReport = {
-        id: Date.now(), // Unique ID based on timestamp
-        jobAddress: jobAddress,
-        superintendent: superintendent,
-        framingContractor: framingContractor,
-        date: new Date().toLocaleDateString(),
-        results: savedResults,
-        descriptions: storedDescriptions,
-        completedAt: new Date().toISOString()
-    };
+    // Get the items that were used for this inspection
+    const templateData = JSON.parse(localStorage.getItem('templateItemsForInspection') || '{}');
+    const templateItems = templateData.items || [];
+    const templateId = templateData.templateId || null;
+    const itemsToUse = templateItems.length > 0 ? templateItems : [];
+
+    // Get the report being edited (if any)
+    const allReports = JSON.parse(localStorage.getItem('inspectionReports') || '[]');
+    let editingReport = null;
+    let reportIndex = -1;
+
+    if (editId) {
+        reportIndex = allReports.findIndex(r => r.id === parseInt(editId));
+        if (reportIndex !== -1) {
+            editingReport = allReports[reportIndex];
+        }
+    }
+
+    // Create or update inspection report object
+    let inspectionReport;
+
+    if (editingReport) {
+        // Update existing report
+        inspectionReport = {
+            ...editingReport, // Keep existing data
+            results: savedResults,
+            descriptions: storedDescriptions,
+            items: itemsToUse,
+            status: status,
+            completedAt: status === 'completed' ? new Date().toISOString() : editingReport.completedAt
+        };
+
+        // Update the report in the array
+        allReports[reportIndex] = inspectionReport;
+    } else {
+        // Create new report
+        inspectionReport = {
+            id: Date.now(), // Unique ID based on timestamp
+            jobAddress: jobAddress,
+            superintendent: superintendent,
+            framingContractor: framingContractor,
+            date: new Date().toLocaleDateString(),
+            results: savedResults,
+            descriptions: storedDescriptions,
+            items: itemsToUse, // Save the items that were inspected
+            templateId: templateId, // Save the template ID this report was created from
+            status: status, // 'draft' or 'completed'
+            completedDeficiencies: editingReport ? editingReport.completedDeficiencies : {},
+            completedAt: status === 'completed' ? new Date().toISOString() : null
+        };
+
+        allReports.push(inspectionReport);
+    }
 
     // Save to localStorage
-    let allReports = JSON.parse(localStorage.getItem('inspectionReports') || '[]');
-    allReports.push(inspectionReport);
     localStorage.setItem('inspectionReports', JSON.stringify(allReports));
 
     // Show confirmation
-    alert('Inspection posted successfully!');
-    
-    // Optionally redirect to reports page
-    // window.location.href = 'pages/framing-reports.html';
+    if (status === 'draft') {
+        alert('Inspection saved as draft. You can continue editing later.');
+    } else {
+        alert('Inspection completed and saved successfully!');
+    }
+
+    // Redirect to reports page
+    window.location.href = 'framing-reports.html';
 }
 
 // Modal and form functionality
