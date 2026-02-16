@@ -31,46 +31,8 @@
         <main>
             <div class="reports-list">
                 <h2>Available Reports</h2>
-                <div class="report-cards">
-                    <div class="report-card">
-                        <h3>Residential Project #123</h3>
-                        <p>Date: Feb 15, 2026</p>
-                        <p>Status: Completed</p>
-                        <div class="report-actions">
-                            <button class="btn-view">View Report</button>
-                            <button class="btn-export">Export PDF</button>
-                        </div>
-                    </div>
-                    
-                    <div class="report-card">
-                        <h3>Commercial Building A</h3>
-                        <p>Date: Feb 10, 2026</p>
-                        <p>Status: In Progress</p>
-                        <div class="report-actions">
-                            <button class="btn-view">View Report</button>
-                            <button class="btn-export">Export PDF</button>
-                        </div>
-                    </div>
-                    
-                    <div class="report-card">
-                        <h3>Apartment Complex Phase 2</h3>
-                        <p>Date: Jan 28, 2026</p>
-                        <p>Status: Completed</p>
-                        <div class="report-actions">
-                            <button class="btn-view">View Report</button>
-                            <button class="btn-export">Export PDF</button>
-                        </div>
-                    </div>
-                    
-                    <div class="report-card">
-                        <h3>Renovation Project X</h3>
-                        <p>Date: Jan 15, 2026</p>
-                        <p>Status: Completed</p>
-                        <div class="report-actions">
-                            <button class="btn-view">View Report</button>
-                            <button class="btn-export">Export PDF</button>
-                        </div>
-                    </div>
+                <div class="report-cards" id="report-cards-container">
+                    <!-- Dynamic report cards will be inserted here -->
                 </div>
             </div>
         </main>
@@ -101,7 +63,13 @@
             </form>
         </div>
     </div>
-    
+
+    <!-- Include jsPDF library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script>
+        // Ensure jsPDF is available globally
+        window.jsPDF = window.jspdf.jsPDF;
+    </script>
     <script src="../js/script.js"></script>
 </body>
 </html>
