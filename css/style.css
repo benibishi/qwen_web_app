@@ -128,6 +128,36 @@ body {
     padding: 15px;
     background-color: #f9f9f9;
     box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    position: relative;
+    padding-top: 40px;
+}
+
+.btn-delete-report-card {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background-color: #f9f9f9;
+    color: #999;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    width: 32px;
+    height: 32px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    transition: all 0.3s;
+}
+
+.btn-delete-report-card i {
+    font-size: 16px;
+}
+
+.btn-delete-report-card:hover {
+    background-color: #e74c3c;
+    color: white;
+    border-color: #e74c3c;
 }
 
 .report-card h3 {
@@ -674,6 +704,161 @@ header h1 {
 .deficiency-complete {
     text-decoration: line-through;
     color: #888;
+}
+
+/* Template styles */
+.template-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 20px;
+    margin-top: 20px;
+}
+
+.template-card {
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 15px;
+    background-color: #f9f9f9;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    cursor: pointer;
+    transition: box-shadow 0.3s;
+}
+
+.template-card:hover {
+    box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+}
+
+.template-card h3 {
+    color: #2c3e50;
+    margin-bottom: 10px;
+}
+
+.template-card p {
+    margin: 5px 0;
+    color: #666;
+}
+
+.template-actions {
+    margin-top: 15px;
+    display: flex;
+    gap: 10px;
+}
+
+.btn-delete-template-card {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background-color: #f9f9f9;
+    color: #999;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    width: 32px;
+    height: 32px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    transition: all 0.3s;
+}
+
+.btn-delete-template-card i {
+    font-size: 16px;
+}
+
+.btn-delete-template-card:hover {
+    background-color: #e74c3c;
+    color: white;
+    border-color: #e74c3c;
+}
+
+.template-card {
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 15px;
+    background-color: #f9f9f9;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    cursor: pointer;
+    transition: box-shadow 0.3s;
+    position: relative;
+    padding-top: 40px;
+}
+
+.template-modal-content {
+    max-width: 400px;
+}
+
+.template-editor {
+    margin-top: 20px;
+}
+
+.add-item-section {
+    background-color: #f8f9fa;
+    padding: 15px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+}
+
+.add-item-section .form-group {
+    margin-bottom: 15px;
+}
+
+.add-item-section label {
+    display: block;
+    font-weight: bold;
+    margin-bottom: 5px;
+}
+
+.add-item-section input,
+.add-item-section textarea {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    box-sizing: border-box;
+}
+
+.add-item-section textarea {
+    min-height: 60px;
+    resize: vertical;
+}
+
+.template-items-list {
+    margin-top: 20px;
+}
+
+.template-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 15px;
+    background-color: #f8f9fa;
+    border-radius: 4px;
+    margin-bottom: 10px;
+    border-left: 3px solid #3498db;
+}
+
+.template-item-info {
+    flex-grow: 1;
+}
+
+.template-item-name {
+    font-weight: bold;
+    color: #2c3e50;
+}
+
+.btn-delete-template {
+    background-color: #e74c3c;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 5px 10px;
+    cursor: pointer;
+    font-size: 12px;
+}
+
+.btn-delete-template:hover {
+    background-color: #c0392b;
 }
 
 @media (max-width: 600px) {

@@ -36,6 +36,14 @@ document.addEventListener('DOMContentLoaded', function() {
     else if (document.getElementById('report-items-container')) {
         loadViewReportPage();
     }
+    // Check if we're on the templates page
+    else if (document.getElementById('template-cards-container')) {
+        loadTemplatesPage();
+    }
+    // Check if we're on the template editor page
+    else if (document.getElementById('template-items-container')) {
+        loadTemplateEditor();
+    }
 
     // Add event listeners for navigation
     if (viewDeficienciesBtn) {
@@ -146,6 +154,7 @@ function loadReportsPage() {
         const statusText = failedCount > 0 ? `${failedCount} failed of ${totalCount}` : 'All passed';
         
         reportCard.innerHTML = `
+            <button class="btn-delete-report-card" data-report-id="${report.id}" title="Delete report"><i class="fas fa-trash"></i></button>
             <h3>${report.jobAddress}</h3>
             <p><strong>Superintendent:</strong> ${report.superintendent}</p>
             <p><strong>Contractor:</strong> ${report.framingContractor}</p>
@@ -174,6 +183,15 @@ function loadReportsPage() {
             exportReportAsPdf(reportId);
         });
     });
+
+    // Add event listeners to delete buttons
+    document.querySelectorAll('.btn-delete-report-card').forEach(button => {
+        button.addEventListener('click', function(e) {
+            e.stopPropagation();
+            const reportId = parseInt(this.getAttribute('data-report-id'));
+            deleteReport(reportId);
+        });
+    });
 }
 
 // View a specific report
@@ -199,6 +217,31 @@ function exportReportAsPdf(reportId) {
         console.error('Error generating PDF:', error);
         alert('Error generating PDF. Please try again.');
     }
+}
+
+// Delete a report
+function deleteReport(reportId) {
+    if (!confirm('Are you sure you want to delete this report? This action cannot be undone.')) {
+        return;
+    }
+
+    // Get the reports
+    const allReports = JSON.parse(localStorage.getItem('inspectionReports') || '[]');
+    const reportIndex = allReports.findIndex(r => r.id === reportId);
+
+    if (reportIndex === -1) {
+        alert('Report not found.');
+        return;
+    }
+
+    // Remove the report
+    allReports.splice(reportIndex, 1);
+
+    // Save back to localStorage
+    localStorage.setItem('inspectionReports', JSON.stringify(allReports));
+
+    // Reload the page to update the display
+    location.reload();
 }
 
 // Generate PDF for a specific report
@@ -350,8 +393,14 @@ function loadInspectionPage() {
     const savedResults = getSavedResults();
     const storedDescriptions = getStoredDeficiencyDescriptions();
 
+    // Check if there are template items to load
+    const templateItems = JSON.parse(localStorage.getItem('templateItemsForInspection') || '[]');
+
+    // Use template items if available, otherwise use sample items
+    const itemsToUse = templateItems.length > 0 ? templateItems : sampleItems;
+
     // Create and display items
-    sampleItems.forEach(item => {
+    itemsToUse.forEach(item => {
         const itemElement = document.createElement('div');
         itemElement.className = 'inspection-item';
 
@@ -1119,26 +1168,365 @@ document.addEventListener('DOMContentLoaded', function() {
             
             // Close modal
             modal.style.display = 'none';
-            
+
             // Redirect to inspection page
             window.location.href = 'framing-inspection.html';
         });
     }
-    
+
     // On the inspection page and deficiencies page, load and display saved info
     const jobAddressSpan = document.getElementById('display-job-address');
     const superintendentSpan = document.getElementById('display-superintendent');
     const framingContractorSpan = document.getElementById('display-framing-contractor');
-    
+
     if (jobAddressSpan && superintendentSpan && framingContractorSpan) {
         // Load saved values
         const savedJobAddress = localStorage.getItem('jobAddress');
         const savedSuperintendent = localStorage.getItem('superintendent');
         const savedFramingContractor = localStorage.getItem('framingContractor');
-        
+
         // Display values
         jobAddressSpan.textContent = savedJobAddress || 'Not provided';
         superintendentSpan.textContent = savedSuperintendent || 'Not provided';
         framingContractorSpan.textContent = savedFramingContractor || 'Not provided';
     }
+
+    // Template modal functionality
+    const newTemplateBtn = document.getElementById('new-template-btn');
+    const templateModal = document.getElementById('template-modal');
+    const closeTemplateBtn = document.querySelector('#template-modal .close');
+    const cancelTemplateBtn = document.getElementById('cancel-template-btn');
+    const templateForm = document.getElementById('template-form');
+
+    if (newTemplateBtn) {
+        newTemplateBtn.addEventListener('click', function() {
+            templateModal.style.display = 'block';
+            document.getElementById('template-title').focus();
+        });
+    }
+
+    if (closeTemplateBtn) {
+        closeTemplateBtn.addEventListener('click', function() {
+            templateModal.style.display = 'none';
+            document.getElementById('template-title').value = '';
+        });
+    }
+
+    if (cancelTemplateBtn) {
+        cancelTemplateBtn.addEventListener('click', function() {
+            templateModal.style.display = 'none';
+            document.getElementById('template-title').value = '';
+        });
+    }
+
+    if (templateForm) {
+        templateForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            const title = document.getElementById('template-title').value.trim();
+            if (title) {
+                createNewTemplate(title);
+                templateModal.style.display = 'none';
+                document.getElementById('template-title').value = '';
+            }
+        });
+    }
+
+    // Close modal when clicking outside
+    window.addEventListener('click', function(e) {
+        if (templateModal && e.target === templateModal) {
+            templateModal.style.display = 'none';
+            document.getElementById('template-title').value = '';
+        }
+    });
 });
+
+// ==================== TEMPLATE FUNCTIONS ====================
+
+// Load the templates page
+function loadTemplatesPage() {
+    const templateCardsContainer = document.getElementById('template-cards-container');
+    if (!templateCardsContainer) return;
+
+    // Get saved templates
+    const allTemplates = JSON.parse(localStorage.getItem('deficiencyTemplates') || '[]');
+
+    // Clear the container
+    templateCardsContainer.innerHTML = '';
+
+    if (allTemplates.length === 0) {
+        templateCardsContainer.innerHTML = '<p>No templates found. Click "New Template" to create one.</p>';
+        return;
+    }
+
+    // Sort templates by date (newest first)
+    allTemplates.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+    // Create and display template cards
+    allTemplates.forEach(template => {
+        const templateCard = document.createElement('div');
+        templateCard.className = 'template-card';
+
+        const itemCount = template.items ? template.items.length : 0;
+
+        templateCard.innerHTML = `
+            <button class="btn-delete-template-card" data-template-id="${template.id}" title="Delete template"><i class="fas fa-trash"></i></button>
+            <h3>${template.title}</h3>
+            <p><strong>Items:</strong> ${itemCount}</p>
+            <p><strong>Created:</strong> ${template.createdAt}</p>
+            <div class="template-actions">
+                <button class="btn-primary btn-edit-template" data-template-id="${template.id}">Edit</button>
+                <button class="btn-secondary btn-use-template" data-template-id="${template.id}">Use for Inspection</button>
+            </div>
+        `;
+
+        templateCardsContainer.appendChild(templateCard);
+    });
+
+    // Add event listeners to the buttons
+    document.querySelectorAll('.btn-edit-template').forEach(button => {
+        button.addEventListener('click', function() {
+            const templateId = parseInt(this.getAttribute('data-template-id'));
+            window.location.href = `template-editor.html?id=${templateId}`;
+        });
+    });
+
+    document.querySelectorAll('.btn-use-template').forEach(button => {
+        button.addEventListener('click', function(e) {
+            e.stopPropagation();
+            const templateId = parseInt(this.getAttribute('data-template-id'));
+            useTemplateForInspection(templateId);
+        });
+    });
+
+    // Add event listeners to delete buttons
+    document.querySelectorAll('.btn-delete-template-card').forEach(button => {
+        button.addEventListener('click', function(e) {
+            e.stopPropagation();
+            const templateId = parseInt(this.getAttribute('data-template-id'));
+            deleteTemplate(templateId);
+        });
+    });
+
+    // Make card clickable to edit
+    templateCardsContainer.querySelectorAll('.template-card').forEach(card => {
+        card.addEventListener('click', function(e) {
+            if (!e.target.classList.contains('btn-edit-template') && !e.target.classList.contains('btn-use-template')) {
+                const editBtn = card.querySelector('.btn-edit-template');
+                if (editBtn) {
+                    const templateId = parseInt(editBtn.getAttribute('data-template-id'));
+                    window.location.href = `template-editor.html?id=${templateId}`;
+                }
+            }
+        });
+    });
+}
+
+// Create a new template
+function createNewTemplate(title) {
+    const newTemplate = {
+        id: Date.now(),
+        title: title,
+        items: [],
+        createdAt: new Date().toLocaleDateString()
+    };
+
+    let allTemplates = JSON.parse(localStorage.getItem('deficiencyTemplates') || '[]');
+    allTemplates.push(newTemplate);
+    localStorage.setItem('deficiencyTemplates', JSON.stringify(allTemplates));
+
+    // Redirect to template editor
+    window.location.href = `template-editor.html?id=${newTemplate.id}`;
+}
+
+// Load the template editor page
+function loadTemplateEditor() {
+    const templateItemsContainer = document.getElementById('template-items-container');
+    if (!templateItemsContainer) return;
+
+    // Get template ID from URL query parameter
+    const urlParams = new URLSearchParams(window.location.search);
+    const templateId = parseInt(urlParams.get('id'));
+
+    if (!templateId) {
+        templateItemsContainer.innerHTML = '<p>Invalid template ID.</p>';
+        return;
+    }
+
+    // Get the template data
+    const allTemplates = JSON.parse(localStorage.getItem('deficiencyTemplates') || '[]');
+    const template = allTemplates.find(t => t.id === templateId);
+
+    if (!template) {
+        templateItemsContainer.innerHTML = '<p>Template not found.</p>';
+        return;
+    }
+
+    // Display template name
+    const templateNameSpan = document.getElementById('display-template-name');
+    const templateTitleDisplay = document.getElementById('template-title-display');
+    if (templateNameSpan) templateNameSpan.textContent = template.title;
+    if (templateTitleDisplay) templateTitleDisplay.textContent = `Edit: ${template.title}`;
+
+    // Initialize items array if not exists
+    if (!template.items) {
+        template.items = [];
+    }
+
+    // Load template items
+    loadTemplateItems(template, templateItemsContainer);
+
+    // Add event listener for add item button
+    const addItemBtn = document.getElementById('add-item-btn');
+    if (addItemBtn) {
+        addItemBtn.addEventListener('click', function() {
+            addTemplateItem(templateId);
+        });
+    }
+
+    // Add event listener for post button
+    const postTemplateBtn = document.getElementById('post-template-btn');
+    if (postTemplateBtn) {
+        postTemplateBtn.addEventListener('click', function() {
+            alert('Template saved successfully!');
+            window.location.href = 'templates.html';
+        });
+    }
+}
+
+// Load and display template items
+function loadTemplateItems(template, container) {
+    container.innerHTML = '';
+
+    if (!template.items || template.items.length === 0) {
+        container.innerHTML = '<p>No items in this template yet. Add items above.</p>';
+        return;
+    }
+
+    template.items.forEach((item, index) => {
+        const itemElement = document.createElement('div');
+        itemElement.className = 'template-item';
+
+        itemElement.innerHTML = `
+            <div class="template-item-info">
+                <div class="template-item-name">${item.name}</div>
+            </div>
+            <button class="btn-delete-template" data-item-index="${index}">Delete</button>
+        `;
+
+        container.appendChild(itemElement);
+    });
+
+    // Add event listeners to delete buttons
+    container.querySelectorAll('.btn-delete-template').forEach(button => {
+        button.addEventListener('click', function() {
+            const itemIndex = parseInt(this.getAttribute('data-item-index'));
+            deleteTemplateItem(template.id, itemIndex);
+        });
+    });
+}
+
+// Add an item to the template
+function addTemplateItem(templateId) {
+    const itemNameInput = document.getElementById('item-name');
+
+    const itemName = itemNameInput.value.trim();
+
+    if (!itemName) {
+        alert('Please enter an item name.');
+        return;
+    }
+
+    // Get the template
+    const allTemplates = JSON.parse(localStorage.getItem('deficiencyTemplates') || '[]');
+    const templateIndex = allTemplates.findIndex(t => t.id === templateId);
+
+    if (templateIndex === -1) {
+        alert('Template not found.');
+        return;
+    }
+
+    // Initialize items array if not exists
+    if (!allTemplates[templateIndex].items) {
+        allTemplates[templateIndex].items = [];
+    }
+
+    // Add the new item
+    allTemplates[templateIndex].items.push({
+        id: Date.now(),
+        name: itemName,
+        description: ''
+    });
+
+    // Save back to localStorage
+    localStorage.setItem('deficiencyTemplates', JSON.stringify(allTemplates));
+
+    // Clear input
+    itemNameInput.value = '';
+
+    // Reload the items list
+    loadTemplateItems(allTemplates[templateIndex], document.getElementById('template-items-container'));
+}
+
+// Delete an item from the template
+function deleteTemplateItem(templateId, itemIndex) {
+    // Get the template
+    const allTemplates = JSON.parse(localStorage.getItem('deficiencyTemplates') || '[]');
+    const templateIndex = allTemplates.findIndex(t => t.id === templateId);
+
+    if (templateIndex === -1) {
+        alert('Template not found.');
+        return;
+    }
+
+    // Remove the item
+    allTemplates[templateIndex].items.splice(itemIndex, 1);
+
+    // Save back to localStorage
+    localStorage.setItem('deficiencyTemplates', JSON.stringify(allTemplates));
+
+    // Reload the items list
+    loadTemplateItems(allTemplates[templateIndex], document.getElementById('template-items-container'));
+}
+
+// Use a template for a new inspection
+function useTemplateForInspection(templateId) {
+    // Get the template
+    const allTemplates = JSON.parse(localStorage.getItem('deficiencyTemplates') || '[]');
+    const template = allTemplates.find(t => t.id === templateId);
+
+    if (!template) {
+        alert('Template not found.');
+        return;
+    }
+
+    // Store template items in localStorage for the inspection to use
+    localStorage.setItem('templateItemsForInspection', JSON.stringify(template.items || []));
+
+    // Redirect to framing inspection page
+    window.location.href = 'framing-inspection.html';
+}
+
+// Delete a template
+function deleteTemplate(templateId) {
+    if (!confirm('Are you sure you want to delete this template? This action cannot be undone.')) {
+        return;
+    }
+
+    // Get the templates
+    const allTemplates = JSON.parse(localStorage.getItem('deficiencyTemplates') || '[]');
+    const templateIndex = allTemplates.findIndex(t => t.id === templateId);
+
+    if (templateIndex === -1) {
+        alert('Template not found.');
+        return;
+    }
+
+    // Remove the template
+    allTemplates.splice(templateIndex, 1);
+
+    // Save back to localStorage
+    localStorage.setItem('deficiencyTemplates', JSON.stringify(allTemplates));
+
+    // Reload the page to update the display
+    location.reload();
+}

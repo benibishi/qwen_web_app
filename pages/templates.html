@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Templates - Construction Quality Control</title>
+    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-brand">
+            <span class="company-banner">Construction Quality Control</span>
+        </div>
+        <div class="nav-tabs">
+            <a href="framing-reports.html" class="nav-tab">Framing</a>
+            <a href="templates.html" class="nav-tab active">Templates</a>
+            <a href="#" class="nav-tab">Electrical</a>
+            <a href="#" class="nav-tab">Plumbing</a>
+            <a href="#" class="nav-tab">HVAC</a>
+        </div>
+    </nav>
+
+    <div class="container">
+        <header>
+            <div class="header-flex">
+                <h1>Deficiency Templates</h1>
+                <button id="new-template-btn" class="btn-primary">New Template</button>
+            </div>
+            <p>Create and manage templates for common deficiency items</p>
+        </header>
+
+        <main>
+            <div class="templates-list">
+                <h2>Saved Templates</h2>
+                <div class="template-cards" id="template-cards-container">
+                    <!-- Template cards will be dynamically added here -->
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- New Template Modal -->
+    <div id="template-modal" class="modal">
+        <div class="modal-content template-modal-content">
+            <span class="close">&times;</span>
+            <h2>New Template</h2>
+            <form id="template-form">
+                <div class="form-group">
+                    <label for="template-title">Template Title:</label>
+                    <input type="text" id="template-title" name="template-title" placeholder="e.g., Standard Framing Inspection" required>
+                </div>
+                <div class="form-actions">
+                    <button type="button" id="cancel-template-btn" class="btn-secondary">Cancel</button>
+                    <button type="submit" class="btn-primary">OK</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="../js/script.js"></script>
+</body>
+</html>
