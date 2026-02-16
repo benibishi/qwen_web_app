@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Deficiencies - Framing Quality Control</title>
+    <link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-brand">
+            <span class="company-banner">Construction Quality Control</span>
+        </div>
+        <div class="nav-tabs">
+            <a href="framing-reports.html" class="nav-tab active">Framing</a>
+            <a href="#" class="nav-tab">Electrical</a>
+            <a href="#" class="nav-tab">Plumbing</a>
+            <a href="#" class="nav-tab">HVAC</a>
+        </div>
+    </nav>
+    
+    <div class="container">
+        <header>
+            <h1>Deficiencies List</h1>
+            <div id="inspection-details">
+                <p><strong>Job Address:</strong> <span id="display-job-address"></span></p>
+                <p><strong>Superintendent:</strong> <span id="display-superintendent"></span></p>
+                <p><strong>Framing Contractor:</strong> <span id="display-framing-contractor"></span></p>
+            </div>
+            <p>Failed items that need to be addressed</p>
+            <div class="navigation-buttons">
+                <a href="framing-inspection.html" class="btn-secondary">Back to Inspection</a>
+                <button id="generate-pdf-btn" class="btn-primary">Generate PDF Report</button>
+            </div>
+        </header>
+
+        <main>
+            <div class="deficiencies-list">
+                <h2>Deficiencies</h2>
+                <div id="deficiencies-container">
+                    <!-- Failed items will be displayed here -->
+                </div>
+            </div>
+        </main>
+    </div>
+    
+    <!-- Include jsPDF library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="../js/script.js"></script>
+</body>
+</html>

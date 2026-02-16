@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Framing Quality Control - Construction Quality Control</title>
+    <link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-brand">
+            <span class="company-banner">Construction Quality Control</span>
+        </div>
+        <div class="nav-tabs">
+            <a href="framing-reports.html" class="nav-tab active">Framing</a>
+            <a href="#" class="nav-tab">Electrical</a>
+            <a href="#" class="nav-tab">Plumbing</a>
+            <a href="#" class="nav-tab">HVAC</a>
+        </div>
+    </nav>
+    
+    <div class="container">
+        <header>
+            <div class="header-flex">
+                <h1>Framing Quality Control</h1>
+            </div>
+            <div id="inspection-details">
+                <p><strong>Job Address:</strong> <span id="display-job-address"></span></p>
+                <p><strong>Superintendent:</strong> <span id="display-superintendent"></span></p>
+                <p><strong>Framing Contractor:</strong> <span id="display-framing-contractor"></span></p>
+            </div>
+            <p>Inspect and mark items as pass or fail</p>
+            <div class="navigation-buttons">
+                <a href="framing-reports.html" class="btn-secondary">Back to Reports</a>
+                <a href="deficiencies.html" class="btn-secondary">View Deficiencies</a>
+            </div>
+        </header>
+        
+        <main>
+            <div class="inspection-list">
+                <h2>Inspection Checklist</h2>
+                <div id="items-container">
+                    <!-- Items will be dynamically added here -->
+                </div>
+            </div>
+        </main>
+    </div>
+    
+    <!-- Include jsPDF library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="../js/script.js"></script>
+</body>
+</html>

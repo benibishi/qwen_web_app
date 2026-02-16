@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Framing Reports - Construction Quality Control</title>
+    <link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-brand">
+            <span class="company-banner">Construction Quality Control</span>
+        </div>
+        <div class="nav-tabs">
+            <a href="framing-reports.html" class="nav-tab active">Framing</a>
+            <a href="#" class="nav-tab">Electrical</a>
+            <a href="#" class="nav-tab">Plumbing</a>
+            <a href="#" class="nav-tab">HVAC</a>
+        </div>
+    </nav>
+    
+    <div class="container">
+        <header>
+            <div class="header-flex">
+                <h1>Framing Reports</h1>
+                <button id="start-inspection-btn" class="btn-primary">New Framing Inspection</button>
+            </div>
+            <p>View and manage your framing inspection reports</p>
+        </header>
+        
+        <main>
+            <div class="reports-list">
+                <h2>Available Reports</h2>
+                <div class="report-cards">
+                    <div class="report-card">
+                        <h3>Residential Project #123</h3>
+                        <p>Date: Feb 15, 2026</p>
+                        <p>Status: Completed</p>
+                        <div class="report-actions">
+                            <button class="btn-view">View Report</button>
+                            <button class="btn-export">Export PDF</button>
+                        </div>
+                    </div>
+                    
+                    <div class="report-card">
+                        <h3>Commercial Building A</h3>
+                        <p>Date: Feb 10, 2026</p>
+                        <p>Status: In Progress</p>
+                        <div class="report-actions">
+                            <button class="btn-view">View Report</button>
+                            <button class="btn-export">Export PDF</button>
+                        </div>
+                    </div>
+                    
+                    <div class="report-card">
+                        <h3>Apartment Complex Phase 2</h3>
+                        <p>Date: Jan 28, 2026</p>
+                        <p>Status: Completed</p>
+                        <div class="report-actions">
+                            <button class="btn-view">View Report</button>
+                            <button class="btn-export">Export PDF</button>
+                        </div>
+                    </div>
+                    
+                    <div class="report-card">
+                        <h3>Renovation Project X</h3>
+                        <p>Date: Jan 15, 2026</p>
+                        <p>Status: Completed</p>
+                        <div class="report-actions">
+                            <button class="btn-view">View Report</button>
+                            <button class="btn-export">Export PDF</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+    
+    <!-- Popup Modal -->
+    <div id="inspection-modal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2>Inspection Information</h2>
+            <form id="inspection-form">
+                <div class="form-group">
+                    <label for="job-address">Job Address:</label>
+                    <input type="text" id="job-address" name="job-address" required>
+                </div>
+                <div class="form-group">
+                    <label for="superintendent">Superintendent:</label>
+                    <input type="text" id="superintendent" name="superintendent" required>
+                </div>
+                <div class="form-group">
+                    <label for="framing-contractor">Framing Contractor:</label>
+                    <input type="text" id="framing-contractor" name="framing-contractor" required>
+                </div>
+                <div class="form-actions">
+                    <button type="submit" class="btn-primary">Submit</button>
+                    <button type="button" id="cancel-modal" class="btn-secondary">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <script src="../js/script.js"></script>
+</body>
+</html>
