@@ -288,53 +288,42 @@ function generatePdfReport() {
     
     if (failedItems.length > 0) {
         failedItems.forEach((item, index) => {
+            // Add item name and status
+            doc.setFontSize(12);
             doc.text(`${index + 1}. ${item.name}`, 20, yPos);
+            doc.text('Status: FAILED', 150, yPos);
             yPos += 8;
             
-            // Add description with wrapping if needed
+            // Add original description
+            doc.setFontSize(10);
             const descriptionText = doc.splitTextToSize(`Description: ${item.description}`, 170);
             doc.text(descriptionText, 25, yPos);
-            
-            // Calculate how many lines the description takes
             const lines = Array.isArray(descriptionText) ? descriptionText.length : 1;
-            yPos += lines * 8 + 5;
-            
-            // Add status
-            doc.text('Status: FAILED', 25, yPos);
-            yPos += 8;
+            yPos += lines * 6 + 5;
             
             // Add the stored deficiency descriptions if they exist
             if (storedDescriptions[item.id] && storedDescriptions[item.id].length > 0) {
-                // Add a header for the deficiency descriptions
-                doc.setFontSize(10); // Ensure readable font size
-                doc.text('Additional Deficiency Notes:', 25, yPos);
-                yPos += 8;
-                
                 storedDescriptions[item.id].forEach(desc => {
-                    const deficiencyText = doc.splitTextToSize(desc, 165); // Slightly narrower for indentation
+                    // Indent the user-provided notes
+                    const deficiencyText = doc.splitTextToSize(`- ${desc}`, 165);
                     doc.text(deficiencyText, 30, yPos);
-                    
                     const deficiencyLines = Array.isArray(deficiencyText) ? deficiencyText.length : 1;
-                    yPos += deficiencyLines * 8 + 5;
+                    yPos += deficiencyLines * 6 + 3;
                     
-                    // Check if we're approaching the bottom of the page
-                    if (yPos > 250) {
-                        doc.addPage(); // Add a new page
-                        yPos = 20; // Reset Y position
-                        // Add a continuation note if needed
+                    if (yPos > 260) {
+                        doc.addPage();
+                        yPos = 20;
                         doc.text('(Continued from previous page)', 20, yPos);
                         yPos += 10;
                     }
                 });
-                
-                // Increase font size back to default after adding notes
-                doc.setFontSize(12);
             }
             
-            // Add some space between items
-            if (yPos > 250) { // Check if we're near the bottom of the page
-                doc.addPage(); // Add a new page
-                yPos = 20; // Reset Y position
+            yPos += 10; // Add space between items
+            
+            if (yPos > 260) {
+                doc.addPage();
+                yPos = 20;
             }
         });
     } else {
@@ -459,79 +448,3 @@ document.addEventListener('DOMContentLoaded', function() {
         framingContractorSpan.textContent = savedFramingContractor || 'Not provided';
     }
 });
-
-function generatePdfReport() {
-    // Get jsPDF instance
-    const { jsPDF } = window.jspdf;
-    
-    // Create a new PDF document
-    const doc = new jsPDF();
-    
-    // Add title
-    doc.setFontSize(18);
-    doc.text('FRAMING QUALITY CONTROL REPORT', 20, 20);
-    
-    // Add inspection details
-    const savedJobAddress = localStorage.getItem('jobAddress') || 'Not provided';
-    const savedSuperintendent = localStorage.getItem('superintendent') || 'Not provided';
-    const savedFramingContractor = localStorage.getItem('framingContractor') || 'Not provided';
-    
-    doc.setFontSize(12);
-    doc.text(`Job Address: ${savedJobAddress}`, 20, 35);
-    doc.text(`Superintendent: ${savedSuperintendent}`, 20, 45);
-    doc.text(`Framing Contractor: ${savedFramingContractor}`, 20, 55);
-    
-    // Add subtitle
-    doc.setFontSize(16);
-    const currentDate = new Date().toLocaleDateString();
-    doc.text(`Deficiencies Report - Generated on: ${currentDate}`, 20, 70);
-    
-    // Get failed items
-    const savedResults = getSavedResults();
-    const failedItems = sampleItems.filter(item => savedResults[item.id] === 'fail');
-    
-    // Add deficiencies list
-    let yPos = 90;
-    doc.setFontSize(12);
-    doc.text('DEFICIENCIES FOUND:', 20, yPos);
-    yPos += 10;
-    
-    if (failedItems.length > 0) {
-        failedItems.forEach((item, index) => {
-            doc.text(`${index + 1}. ${item.name}`, 20, yPos);
-            yPos += 8;
-            
-            // Add description with wrapping if needed
-            const descriptionText = doc.splitTextToSize(`Description: ${item.description}`, 170);
-            doc.text(descriptionText, 25, yPos);
-            
-            // Calculate how many lines the description takes
-            const lines = Array.isArray(descriptionText) ? descriptionText.length : 1;
-            yPos += lines * 8 + 5;
-            
-            // Add status
-            doc.text('Status: FAILED', 25, yPos);
-            yPos += 10;
-            
-            // Add some space between items
-            if (yPos > 250) { // Check if we're near the bottom of the page
-                doc.addPage(); // Add a new page
-                yPos = 20; // Reset Y position
-            }
-        });
-    } else {
-        doc.text('No deficiencies found.', 20, yPos);
-        yPos += 10;
-    }
-    
-    // Add inspector signature section
-    yPos += 10;
-    doc.text('Inspector: _________________________', 20, yPos);
-    yPos += 10;
-    doc.text('Signature: ________________________', 20, yPos);
-    yPos += 10;
-    doc.text(`Date: ${currentDate}`, 20, yPos);
-    
-    // Save the PDF
-    doc.save(`deficiencies_report_${currentDate.replace(/\//g, '-')}.pdf`);
-}
