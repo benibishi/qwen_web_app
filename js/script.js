@@ -1,15 +1,3 @@
-// Sample inspection items
-const sampleItems = [
-    { id: 1, name: "Wall Plate Alignment", description: "Check that wall plates are properly aligned" },
-    { id: 2, name: "Stud Spacing", description: "Verify studs are spaced correctly (16\" or 24\" OC)" },
-    { id: 3, name: "Top Plate Overlap", description: "Ensure top plates overlap at corners and T-joints" },
-    { id: 4, name: "Bracing Installation", description: "Check that bracing is properly installed" },
-    { id: 5, name: "Rough Opening Dimensions", description: "Verify door/window openings are correct size" },
-    { id: 6, name: "Header Installation", description: "Check headers are properly sized and installed" },
-    { id: 7, name: "Sill Sealing", description: "Ensure sill plates are properly sealed" },
-    { id: 8, name: "Lateral Restraint", description: "Verify lateral restraint is properly installed" }
-];
-
 // DOM elements
 const itemsContainer = document.getElementById('items-container');
 const deficienciesContainer = document.getElementById('deficiencies-container');
@@ -70,6 +58,15 @@ document.addEventListener('DOMContentLoaded', function() {
     if (postButton) {
         postButton.addEventListener('click', postFunction);
     }
+
+    // Refresh reports page when it becomes visible (e.g., when returning from view report)
+    if (document.getElementById('report-cards-container')) {
+        document.addEventListener('visibilitychange', function() {
+            if (!document.hidden) {
+                loadReportsPage();
+            }
+        });
+    }
 });
 
 // Initialize collapsible sections
@@ -101,6 +98,12 @@ function completeInspection() {
     const superintendent = localStorage.getItem('superintendent') || 'Not provided';
     const framingContractor = localStorage.getItem('framingContractor') || 'Not provided';
 
+    // Get the items that were used for this inspection
+    const templateData = JSON.parse(localStorage.getItem('templateItemsForInspection') || '{}');
+    const templateItems = templateData.items || [];
+    const templateId = templateData.templateId || null;
+    const itemsToUse = templateItems.length > 0 ? templateItems : [];
+
     // Create inspection report object
     const inspectionReport = {
         id: Date.now(), // Unique ID based on timestamp
@@ -110,6 +113,8 @@ function completeInspection() {
         date: new Date().toLocaleDateString(),
         results: savedResults,
         descriptions: storedDescriptions,
+        items: itemsToUse, // Save the items that were inspected
+        templateId: templateId, // Save the template ID this report was created from
         completedDeficiencies: {}, // Initialize empty - no deficiencies marked complete yet
         completedAt: new Date().toISOString()
     };
@@ -147,12 +152,20 @@ function loadReportsPage() {
     allReports.forEach(report => {
         const reportCard = document.createElement('div');
         reportCard.className = 'report-card';
-        
+
         // Count failed items
         const failedCount = Object.values(report.results).filter(status => status === 'fail').length;
         const totalCount = Object.keys(report.results).length;
         const statusText = failedCount > 0 ? `${failedCount} failed of ${totalCount}` : 'All passed';
-        
+
+        // Count completed deficiencies
+        const completedDeficiencies = report.completedDeficiencies || {};
+        const completedCount = Object.values(completedDeficiencies).filter(v => v).length;
+        let completionText = '';
+        if (failedCount > 0) {
+            completionText = `<p><strong>Completed:</strong> ${completedCount} of ${failedCount} deficiencies</p>`;
+        }
+
         reportCard.innerHTML = `
             <button class="btn-delete-report-card" data-report-id="${report.id}" title="Delete report"><i class="fas fa-trash"></i></button>
             <h3>${report.jobAddress}</h3>
@@ -160,12 +173,13 @@ function loadReportsPage() {
             <p><strong>Contractor:</strong> ${report.framingContractor}</p>
             <p><strong>Date:</strong> ${report.date}</p>
             <p><strong>Status:</strong> ${statusText}</p>
+            ${completionText}
             <div class="report-actions">
                 <button class="btn-view" data-report-id="${report.id}">View Report</button>
                 <button class="btn-export" data-report-id="${report.id}">Export PDF</button>
             </div>
         `;
-        
+
         reportCardsContainer.appendChild(reportCard);
     });
     
@@ -270,8 +284,21 @@ function generateSpecificReportPdf(report) {
     doc.setFontSize(16);
     doc.text('Deficiencies Report', 20, 80);
 
-    // Get failed items
-    const failedItems = sampleItems.filter(item => report.results[item.id] === 'fail');
+    // Get failed items from report's saved items
+    let reportItems = report.items || [];
+    // Fallback to template items if report has no items
+    if (reportItems.length === 0) {
+        const templateData = JSON.parse(localStorage.getItem('templateItemsForInspection') || '{}');
+        reportItems = templateData.items || [];
+    }
+    const failedItems = reportItems.filter(item => report.results[item.id] === 'fail');
+    
+    console.log('PDF Export Debug:', {
+        reportItems: reportItems.length,
+        reportResults: report.results,
+        failedItems: failedItems.length,
+        reportDescriptions: report.descriptions
+    });
 
     // Get completed deficiencies
     const completedDeficiencies = report.completedDeficiencies || {};
@@ -298,8 +325,9 @@ function generateSpecificReportPdf(report) {
             yPos += lines * 6 + 5;
 
             // Add the stored deficiency descriptions if they exist
-            if (report.descriptions[item.id] && report.descriptions[item.id].length > 0) {
-                report.descriptions[item.id].forEach((desc, descIndex) => {
+            const itemDescriptions = report.descriptions[item.id] || report.descriptions[String(item.id)];
+            if (itemDescriptions && itemDescriptions.length > 0) {
+                itemDescriptions.forEach((desc, descIndex) => {
                     const deficiencyKey = `${item.id}_${descIndex}`;
                     const isCompleted = completedDeficiencies[deficiencyKey] === true;
 
@@ -394,10 +422,11 @@ function loadInspectionPage() {
     const storedDescriptions = getStoredDeficiencyDescriptions();
 
     // Check if there are template items to load
-    const templateItems = JSON.parse(localStorage.getItem('templateItemsForInspection') || '[]');
+    const templateData = JSON.parse(localStorage.getItem('templateItemsForInspection') || '{}');
+    const templateItems = templateData.items || [];
 
-    // Use template items if available, otherwise use sample items
-    const itemsToUse = templateItems.length > 0 ? templateItems : sampleItems;
+    // Use template items if available, otherwise use empty array
+    const itemsToUse = templateItems.length > 0 ? templateItems : [];
 
     // Create and display items
     itemsToUse.forEach(item => {
@@ -492,7 +521,11 @@ function loadDeficienciesPage() {
     // Get saved results and find failed items
     const savedResults = getSavedResults();
     const storedDescriptions = getStoredDeficiencyDescriptions();
-    const failedItems = sampleItems.filter(item => savedResults[item.id] === 'fail');
+    
+    // Get items from template or use empty array
+    const templateData = JSON.parse(localStorage.getItem('templateItemsForInspection') || '{}');
+    const templateItems = templateData.items || [];
+    const failedItems = templateItems.filter(item => savedResults[item.id] === 'fail');
 
     if (failedItems.length === 0) {
         deficienciesContainer.innerHTML = '<p>No deficiencies found. All items have passed inspection.</p>';
@@ -613,8 +646,16 @@ function loadViewReportPage() {
     const storedDescriptions = report.descriptions || {};
     const completedDeficiencies = report.completedDeficiencies || {};
 
+    // Use saved items from report, or fall back to template items, or empty array
+    let reportItems = report.items || [];
+    if (reportItems.length === 0) {
+        // Try to load from templateItemsForInspection as fallback
+        const templateData = JSON.parse(localStorage.getItem('templateItemsForInspection') || '{}');
+        reportItems = templateData.items || [];
+    }
+
     // Create and display all items with their status
-    sampleItems.forEach(item => {
+    reportItems.forEach(item => {
         const itemElement = document.createElement('div');
         itemElement.className = 'inspection-item';
 
@@ -727,6 +768,13 @@ function loadViewReportPage() {
             exportReportAsPdf(reportId);
         });
     }
+
+    // Refresh data when page becomes visible (e.g., when returning from editing)
+    document.addEventListener('visibilitychange', function() {
+        if (!document.hidden && reportItemsContainer) {
+            loadViewReportPage();
+        }
+    });
 }
 
 // Toggle deficiency completion status
@@ -952,12 +1000,16 @@ function generatePdfReport() {
     doc.setFontSize(16);
     const currentDate = new Date().toLocaleDateString();
     doc.text(`Deficiencies Report - Generated on: ${currentDate}`, 20, 70);
-    
-    // Get failed items
+
+    // Get saved results and find failed items
     const savedResults = getSavedResults();
     const storedDescriptions = getStoredDeficiencyDescriptions();
-    const failedItems = sampleItems.filter(item => savedResults[item.id] === 'fail');
     
+    // Get items from template or use empty array
+    const templateData = JSON.parse(localStorage.getItem('templateItemsForInspection') || '{}');
+    const templateItems = templateData.items || [];
+    const failedItems = templateItems.filter(item => savedResults[item.id] === 'fail');
+
     // Add deficiencies list
     let yPos = 90;
     doc.setFontSize(12);
@@ -978,10 +1030,11 @@ function generatePdfReport() {
             doc.text(descriptionText, 25, yPos);
             const lines = Array.isArray(descriptionText) ? descriptionText.length : 1;
             yPos += lines * 6 + 5;
-            
+
             // Add the stored deficiency descriptions if they exist
-            if (storedDescriptions[item.id] && storedDescriptions[item.id].length > 0) {
-                storedDescriptions[item.id].forEach(desc => {
+            const itemDescriptions = storedDescriptions[item.id] || storedDescriptions[String(item.id)];
+            if (itemDescriptions && itemDescriptions.length > 0) {
+                itemDescriptions.forEach(desc => {
                     // Indent the user-provided notes
                     const deficiencyText = doc.splitTextToSize(`- ${desc}`, 165);
                     doc.text(deficiencyText, 30, yPos);
@@ -1131,6 +1184,14 @@ document.addEventListener('DOMContentLoaded', function() {
     // Check if we're on the reports page
     if (startInspectionBtn) {
         startInspectionBtn.addEventListener('click', function() {
+            // Check if any templates exist
+            const allTemplates = JSON.parse(localStorage.getItem('deficiencyTemplates') || '[]');
+            
+            if (allTemplates.length === 0) {
+                alert('No templates available. Please create a template first.');
+                return;
+            }
+            
             // Clear existing inspection data for a fresh start
             clearInspectionData();
             modal.style.display = 'block';
@@ -1499,8 +1560,11 @@ function useTemplateForInspection(templateId) {
         return;
     }
 
-    // Store template items in localStorage for the inspection to use
-    localStorage.setItem('templateItemsForInspection', JSON.stringify(template.items || []));
+    // Store template items and templateId in localStorage for the inspection to use
+    localStorage.setItem('templateItemsForInspection', JSON.stringify({
+        templateId: templateId,
+        items: template.items || []
+    }));
 
     // Redirect to framing inspection page
     window.location.href = 'framing-inspection.html';
@@ -1526,6 +1590,15 @@ function deleteTemplate(templateId) {
 
     // Save back to localStorage
     localStorage.setItem('deficiencyTemplates', JSON.stringify(allTemplates));
+
+    // Also delete all reports created from this template
+    const allReports = JSON.parse(localStorage.getItem('inspectionReports') || '[]');
+    const filteredReports = allReports.filter(r => r.templateId !== templateId);
+
+    // Only update if reports were actually deleted
+    if (filteredReports.length !== allReports.length) {
+        localStorage.setItem('inspectionReports', JSON.stringify(filteredReports));
+    }
 
     // Reload the page to update the display
     location.reload();
