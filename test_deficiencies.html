@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Deficiencies Page</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-brand">
+            <span class="company-banner">Construction Quality Control</span>
+        </div>
+        <div class="nav-tabs">
+            <a href="framing-reports.html" class="nav-tab active">Framing</a>
+            <a href="#" class="nav-tab">Electrical</a>
+            <a href="#" class="nav-tab">Plumbing</a>
+            <a href="#" class="nav-tab">HVAC</a>
+        </div>
+    </nav>
+
+    <div class="container">
+        <header>
+            <div class="header-flex">
+                <h1>Deficiencies Report</h1>
+            </div>
+            <p>Review items that failed inspection</p>
+        </header>
+
+        <main>
+            <div class="deficiencies-list">
+                <h2>Failed Items</h2>
+                <div id="deficiencies-container">
+                    <!-- Deficiencies will be loaded here -->
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // Sample inspection items
+        const sampleItems = [
+            { id: 1, name: "Wall Plate Alignment", description: "Check that wall plates are properly aligned" },
+            { id: 2, name: "Stud Spacing", description: "Verify studs are spaced correctly (16\" or 24\" OC)" },
+            { id: 3, name: "Top Plate Overlap", description: "Ensure top plates overlap at corners and T-joints" },
+            { id: 4, name: "Bracing Installation", description: "Check that bracing is properly installed" },
+            { id: 5, name: "Rough Opening Dimensions", description: "Verify door/window openings are correct size" },
+            { id: 6, name: "Header Installation", description: "Check headers are properly sized and installed" },
+            { id: 7, name: "Sill Sealing", description: "Ensure sill plates are properly sealed" },
+            { id: 8, name: "Lateral Restraint", description: "Verify lateral restraint is properly installed" }
+        ];
+
+        // Mock localStorage data for testing
+        localStorage.setItem('inspectionResults', JSON.stringify({
+            1: 'fail',
+            2: 'fail',
+            3: 'pass'
+        }));
+        
+        localStorage.setItem('storedDeficiencyDescriptions', JSON.stringify({
+            1: ['Wall plate not properly aligned with foundation anchor bolts', 'Gap exceeds 1/4 inch tolerance'],
+            2: ['Studs spaced at 18" OC instead of required 16" OC']
+        }));
+
+        // DOM elements
+        const deficienciesContainer = document.getElementById('deficiencies-container');
+
+        // Get saved results and find failed items
+        const savedResults = JSON.parse(localStorage.getItem('inspectionResults') || '{}');
+        const storedDescriptions = JSON.parse(localStorage.getItem('storedDeficiencyDescriptions') || '{}');
+        const failedItems = sampleItems.filter(item => savedResults[item.id] === 'fail');
+
+        // Clear the container
+        deficienciesContainer.innerHTML = '';
+
+        if (failedItems.length === 0) {
+            deficienciesContainer.innerHTML = '<p>No deficiencies found. All items have passed inspection.</p>';
+            return;
+        }
+
+        // Create and display failed items
+        failedItems.forEach(item => {
+            const itemElement = document.createElement('div');
+            itemElement.className = 'deficiency-item';
+
+            // Get any stored descriptions for this item
+            const descriptions = storedDescriptions[item.id] || [];
+            let descriptionHTML = `<div class="deficiency-description">${item.description}</div>`;
+
+            if (descriptions.length > 0) {
+                // Create collapsible section for additional descriptions
+                descriptionHTML += `
+                    <div class="additional-descriptions-container">
+                        <div class="additional-descriptions-header">
+                            <h4>Additional Details</h4>
+                            <button type="button" class="toggle-button" data-target="additional-descriptions-content-${item.id}">
+                                <span class="toggle-icon">▼</span>
+                            </button>
+                        </div>
+                        <div id="additional-descriptions-content-${item.id}" class="additional-descriptions-content">
+                `;
+                
+                descriptions.forEach(desc => {
+                    descriptionHTML += `<div class="additional-description"><p>${desc}</p></div>`;
+                });
+                
+                descriptionHTML += `
+                        </div>
+                    </div>
+                `;
+            } else {
+                descriptionHTML += '<div class="additional-descriptions"></div>'; // Empty container if no descriptions
+            }
+
+            itemElement.innerHTML = `
+                <div class="deficiency-header">
+                    <div class="deficiency-name">${item.name}</div>
+                    <span class="status-badge status-fail">FAILED</span>
+                </div>
+                <div class="deficiency-description">${item.description}</div>
+                <div class="deficiency-content-wrapper">
+                    ${descriptionHTML.replace(`<div class="deficiency-description">${item.description}</div>`, '')}
+                </div>
+            `;
+
+            deficienciesContainer.appendChild(itemElement);
+            
+            // Add toggle functionality for additional descriptions if they exist
+            if (descriptions.length > 0) {
+                const toggleButton = itemElement.querySelector(`.additional-descriptions-header .toggle-button`);
+                if (toggleButton) {
+                    toggleButton.addEventListener('click', function() {
+                        const targetId = this.getAttribute('data-target');
+                        const targetElement = document.getElementById(targetId);
+                        
+                        if (targetElement.style.display === 'none') {
+                            targetElement.style.display = 'block';
+                            this.querySelector('.toggle-icon').textContent = '▼';
+                        } else {
+                            targetElement.style.display = 'none';
+                            this.querySelector('.toggle-icon').textContent = '▶';
+                        }
+                    });
+                }
+            }
+        });
+
+        // Initialize collapsible sections
+        document.addEventListener('DOMContentLoaded', function() {
+            // Set initial state for all toggle icons to collapsed (▶)
+            const toggleIcons = document.querySelectorAll('.toggle-icon');
+            toggleIcons.forEach(icon => {
+                if (!icon.dataset.initialized) {
+                    icon.textContent = '▶'; // Default to collapsed
+                    icon.dataset.initialized = 'true';
+                }
+            });
+            
+            // Also hide the content sections by default
+            const contentSections = document.querySelectorAll('.deficiency-content, .deficiency-display-content, .additional-descriptions-content');
+            contentSections.forEach(section => {
+                section.style.display = 'none';
+            });
+        });
+    </script>
+</body>
+</html>

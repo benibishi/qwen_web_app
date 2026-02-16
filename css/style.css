@@ -269,12 +269,73 @@ body {
 
 .deficiency-description-section {
     margin-top: 15px;
-    padding: 15px;
+    padding: 0;
     background-color: #fff3cd;
     border: 1px solid #ffeaa7;
     border-radius: 5px;
     width: 100%;
     display: block;
+}
+
+.deficiency-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 5px;
+}
+
+.deficiency-name {
+    font-weight: bold;
+    color: #c0392b;
+    flex-grow: 1;
+    margin-right: 10px;
+}
+
+.deficiency-content {
+    padding: 15px;
+    background-color: #fff3cd;
+    border-radius: 0 0 5px 5px;
+}
+
+.deficiency-display-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 15px;
+    background-color: #e2e3e5;
+    border-radius: 5px 5px 0 0;
+    cursor: pointer;
+    border-bottom: 1px solid #d6d8db;
+}
+
+.deficiency-display-header h4 {
+    margin: 0;
+    font-size: 1rem;
+    color: #383d41;
+}
+
+.deficiency-display-content {
+    padding: 15px;
+    background-color: #f8f9fa;
+    border-radius: 0 0 5px 5px;
+}
+
+.toggle-button {
+    background: none;
+    border: none;
+    font-size: 1rem;
+    cursor: pointer;
+    padding: 0;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #6c757d;
+}
+
+.toggle-button:hover {
+    color: #495057;
 }
 
 .deficiency-input-container {
@@ -317,6 +378,8 @@ body {
 .deficiency-display {
     margin-top: 10px;
     width: 100%;
+    border: 1px solid #ced4da;
+    border-radius: 5px;
 }
 
 .deficiency-display p {
@@ -328,25 +391,49 @@ body {
     width: 100%;
 }
 
-.deficiency-display-list {
-    width: 100%;
+/* Align additional descriptions to the left */
+.additional-descriptions {
     margin-top: 10px;
+    width: 100%;
 }
 
-.deficiency-item {
+.additional-descriptions-container {
+    margin-top: 10px;
+    width: 100%;
+    border: 1px solid #ced4da;
+    border-radius: 5px;
+}
+
+.additional-descriptions-header {
     display: flex;
-    align-items: flex-start;
-    margin-bottom: 8px;
-    padding: 8px;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 15px;
+    background-color: #e2e3e5;
+    border-radius: 5px 5px 0 0;
+    cursor: pointer;
+    border-bottom: 1px solid #d6d8db;
+}
+
+.additional-descriptions-header h4 {
+    margin: 0;
+    font-size: 1rem;
+    color: #383d41;
+}
+
+.additional-descriptions-content {
+    padding: 15px;
     background-color: #f8f9fa;
+    border-radius: 0 0 5px 5px;
+}
+
+.additional-description {
+    background-color: #f8f9fa;
+    padding: 8px;
     border-radius: 4px;
     border-left: 3px solid #e74c3c;
-}
-
-.deficiency-item p {
-    flex-grow: 1;
-    margin: 0 10px 0 0;
-    padding: 0;
+    margin: 5px 0;
+    width: 100%;
 }
 
 .btn-delete {
@@ -361,11 +448,6 @@ body {
 }
 
 /* Align additional descriptions to the left */
-.additional-descriptions {
-    margin-top: 10px;
-    width: 100%;
-}
-
 .additional-description {
     background-color: #f8f9fa;
     padding: 8px;
@@ -514,17 +596,27 @@ header h1 {
     color: #721c24;
 }
 
+.deficiency-content-wrapper {
+    width: 100%;
+    margin-top: 10px;
+}
+
+.deficiency-description {
+    color: #666;
+    margin-bottom: 10px;
+}
+
 @media (max-width: 600px) {
     .container {
         padding: 10px;
     }
-    
+
     .inspection-item {
         flex-direction: column;
         align-items: flex-start;
         gap: 10px;
     }
-    
+
     .button-group {
         width: 100%;
         justify-content: center;

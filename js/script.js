@@ -21,7 +21,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Check if we're on the main inspection page
     if (itemsContainer) {
         loadInspectionPage();
-    } 
+    }
     // Check if we're on the deficiencies page
     else if (deficienciesContainer) {
         loadDeficienciesPage();
@@ -39,7 +39,28 @@ document.addEventListener('DOMContentLoaded', function() {
             window.location.href = 'index.html';
         });
     }
+    
+    // Initialize toggle states for any existing collapsible sections
+    initializeCollapsibleSections();
 });
+
+// Initialize collapsible sections
+function initializeCollapsibleSections() {
+    // Set initial state for all toggle icons to collapsed (▶)
+    const toggleIcons = document.querySelectorAll('.toggle-icon');
+    toggleIcons.forEach(icon => {
+        if (!icon.dataset.initialized) {
+            icon.textContent = '▶'; // Default to collapsed
+            icon.dataset.initialized = 'true';
+        }
+    });
+    
+    // Also hide the content sections by default
+    const contentSections = document.querySelectorAll('.deficiency-content, .deficiency-display-content, .additional-descriptions-content');
+    contentSections.forEach(section => {
+        section.style.display = 'none';
+    });
+}
 
 // Load the inspection page
 function loadInspectionPage() {
@@ -74,19 +95,53 @@ function loadInspectionPage() {
         
         // If the item is marked as failed and has stored descriptions, show them
         if (savedStatus === 'fail' && storedDescriptions[item.id] && storedDescriptions[item.id].length > 0) {
-            // Create the deficiency display section
+            // Create the deficiency display section with collapsible header
             const deficiencyDisplay = document.createElement('div');
             deficiencyDisplay.id = `deficiency-display-${item.id}`;
             deficiencyDisplay.className = 'deficiency-display';
-            
+
+            // Create header with toggle
+            const displayHeader = document.createElement('div');
+            displayHeader.className = 'deficiency-display-header';
+            displayHeader.innerHTML = `
+                <h4>Added Deficiencies</h4>
+                <button type="button" class="toggle-button" data-target="deficiency-display-content-${item.id}">
+                    <span class="toggle-icon">▼</span>
+                </button>
+            `;
+
+            deficiencyDisplay.appendChild(displayHeader);
+
+            // Create content section
+            const displayContent = document.createElement('div');
+            displayContent.id = `deficiency-display-content-${item.id}`;
+            displayContent.className = 'deficiency-display-content';
+
             // Add each stored description
             storedDescriptions[item.id].forEach(desc => {
                 const descParagraph = document.createElement('p');
                 descParagraph.textContent = desc;
-                deficiencyDisplay.appendChild(descParagraph);
+                displayContent.appendChild(descParagraph);
             });
-            
+
+            deficiencyDisplay.appendChild(displayContent);
+
             itemElement.appendChild(deficiencyDisplay);
+
+            // Add toggle functionality to the display section
+            const displayToggle = displayHeader.querySelector('.toggle-button');
+            displayToggle.addEventListener('click', function() {
+                const targetId = this.getAttribute('data-target');
+                const targetElement = document.getElementById(targetId);
+                
+                if (targetElement.style.display === 'none') {
+                    targetElement.style.display = 'block';
+                    this.querySelector('.toggle-icon').textContent = '▼';
+                } else {
+                    targetElement.style.display = 'none';
+                    this.querySelector('.toggle-icon').textContent = '▶';
+                }
+            });
         }
     });
 
@@ -123,13 +178,30 @@ function loadDeficienciesPage() {
         // Get any stored descriptions for this item
         const descriptions = storedDescriptions[item.id] || [];
         let descriptionHTML = `<div class="deficiency-description">${item.description}</div>`;
-        
+
         if (descriptions.length > 0) {
-            descriptionHTML += '<div class="additional-descriptions">';
+            // Create collapsible section for additional descriptions
+            descriptionHTML += `
+                <div class="additional-descriptions-container">
+                    <div class="additional-descriptions-header">
+                        <h4>Additional Details</h4>
+                        <button type="button" class="toggle-button" data-target="additional-descriptions-content-${item.id}">
+                            <span class="toggle-icon">▼</span>
+                        </button>
+                    </div>
+                    <div id="additional-descriptions-content-${item.id}" class="additional-descriptions-content">
+            `;
+            
             descriptions.forEach(desc => {
                 descriptionHTML += `<div class="additional-description"><p>${desc}</p></div>`;
             });
-            descriptionHTML += '</div>';
+            
+            descriptionHTML += `
+                    </div>
+                </div>
+            `;
+        } else {
+            descriptionHTML += '<div class="additional-descriptions"></div>'; // Empty container if no descriptions
         }
 
         itemElement.innerHTML = `
@@ -137,10 +209,32 @@ function loadDeficienciesPage() {
                 <div class="deficiency-name">${item.name}</div>
                 <span class="status-badge status-fail">FAILED</span>
             </div>
-            ${descriptionHTML}
+            <div class="deficiency-description">${item.description}</div>
+            <div class="deficiency-content-wrapper">
+                ${descriptionHTML.replace(`<div class="deficiency-description">${item.description}</div>`, '')}
+            </div>
         `;
 
         deficienciesContainer.appendChild(itemElement);
+        
+        // Add toggle functionality for additional descriptions if they exist
+        if (descriptions.length > 0) {
+            const toggleButton = itemElement.querySelector(`.additional-descriptions-header .toggle-button`);
+            if (toggleButton) {
+                toggleButton.addEventListener('click', function() {
+                    const targetId = this.getAttribute('data-target');
+                    const targetElement = document.getElementById(targetId);
+                    
+                    if (targetElement.style.display === 'none') {
+                        targetElement.style.display = 'block';
+                        this.querySelector('.toggle-icon').textContent = '▼';
+                    } else {
+                        targetElement.style.display = 'none';
+                        this.querySelector('.toggle-icon').textContent = '▶';
+                    }
+                });
+            }
+        }
     });
 }
 
@@ -173,61 +267,132 @@ function handleFailClick(event) {
 function showDeficiencyDescriptionSection(itemId) {
     const itemElement = document.querySelector(`.inspection-item[data-id="${itemId}"]`);
     if (!itemElement) return;
-    
+
     // Check if the section already exists
     const existingSection = document.getElementById(`deficiency-desc-${itemId}`);
     if (existingSection) {
         existingSection.style.display = 'block';
         return;
     }
-    
+
     // Create the deficiency description section
     const deficiencySection = document.createElement('div');
     deficiencySection.id = `deficiency-desc-${itemId}`;
     deficiencySection.className = 'deficiency-description-section';
-    
-    deficiencySection.innerHTML = `
+
+    // Create the header with toggle button
+    const headerSection = document.createElement('div');
+    headerSection.className = 'deficiency-header';
+    headerSection.innerHTML = `
+        <h4>Deficiency Details</h4>
+        <button type="button" class="toggle-button" data-target="deficiency-desc-content-${itemId}">
+            <span class="toggle-icon">▼</span>
+        </button>
+    `;
+
+    // Create the content section
+    const contentSection = document.createElement('div');
+    contentSection.id = `deficiency-desc-content-${itemId}`;
+    contentSection.className = 'deficiency-content';
+
+    contentSection.innerHTML = `
         <div class="deficiency-input-container">
             <label for="deficiency-desc-input-${itemId}">Deficiency Description:</label>
             <textarea id="deficiency-desc-input-${itemId}" placeholder="Describe the deficiency..."></textarea>
             <button class="btn-ok" data-id="${itemId}">OK</button>
         </div>
     `;
-    
+
+    deficiencySection.appendChild(headerSection);
+    deficiencySection.appendChild(contentSection);
+
     itemElement.appendChild(deficiencySection);
-    
+
+    // Add event listener to the toggle button
+    const toggleButton = headerSection.querySelector('.toggle-button');
+    toggleButton.addEventListener('click', function() {
+        const targetId = this.getAttribute('data-target');
+        const targetElement = document.getElementById(targetId);
+        
+        if (targetElement.style.display === 'none') {
+            targetElement.style.display = 'block';
+            this.querySelector('.toggle-icon').textContent = '▼';
+        } else {
+            targetElement.style.display = 'none';
+            this.querySelector('.toggle-icon').textContent = '▶';
+        }
+    });
+
     // Add event listener to the OK button
-    const okButton = deficiencySection.querySelector('.btn-ok');
+    const okButton = contentSection.querySelector('.btn-ok');
     okButton.addEventListener('click', function() {
         const descInput = document.getElementById(`deficiency-desc-input-${itemId}`);
         const description = descInput.value.trim();
-        
+
         if (description) {
             // Store the description in localStorage
             storeDeficiencyDescription(itemId, description);
-            
+
             // Find the item element again to append the display
             const itemEl = document.querySelector(`.inspection-item[data-id="${itemId}"]`);
-            
+
             // Create a display div if it doesn't exist
             let displayDiv = document.getElementById(`deficiency-display-${itemId}`);
             if (!displayDiv) {
                 displayDiv = document.createElement('div');
+                
+                // Create header with toggle for the display section too
+                const displayHeader = document.createElement('div');
+                displayHeader.className = 'deficiency-display-header';
+                displayHeader.innerHTML = `
+                    <h4>Added Deficiencies</h4>
+                    <button type="button" class="toggle-button" data-target="deficiency-display-content-${itemId}">
+                        <span class="toggle-icon">▼</span>
+                    </button>
+                `;
+                
+                displayDiv.appendChild(displayHeader);
+                
+                const displayContent = document.createElement('div');
+                displayContent.id = `deficiency-display-content-${itemId}`;
+                displayContent.className = 'deficiency-display-content';
                 displayDiv.id = `deficiency-display-${itemId}`;
                 displayDiv.className = 'deficiency-display';
+                
+                displayDiv.appendChild(displayContent);
+                
                 itemEl.appendChild(displayDiv);
+                
+                // Add toggle functionality to the display section
+                const displayToggle = displayHeader.querySelector('.toggle-button');
+                displayToggle.addEventListener('click', function() {
+                    const targetId = this.getAttribute('data-target');
+                    const targetElement = document.getElementById(targetId);
+                    
+                    if (targetElement.style.display === 'none') {
+                        targetElement.style.display = 'block';
+                        this.querySelector('.toggle-icon').textContent = '▼';
+                    } else {
+                        targetElement.style.display = 'none';
+                        this.querySelector('.toggle-icon').textContent = '▶';
+                    }
+                });
             }
-            
-            // Add the description to the display
+
+            // Add the description to the display content
             const descParagraph = document.createElement('p');
             descParagraph.textContent = description;
-            displayDiv.appendChild(descParagraph);
-            
+            const displayContent = displayDiv.querySelector('.deficiency-display-content');
+            displayContent.appendChild(descParagraph);
+
             // Clear the input field
             descInput.value = '';
+
+            // Hide the input section after adding the description
+            contentSection.style.display = 'none';
             
-            // Hide the input section
-            deficiencySection.style.display = 'none';
+            // Update toggle icon to reflect hidden state
+            toggleButton.querySelector('.toggle-icon').textContent = '▶';
         }
     });
 }
