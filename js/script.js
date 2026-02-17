@@ -32,6 +32,10 @@ document.addEventListener('DOMContentLoaded', function() {
     else if (document.getElementById('template-items-container')) {
         loadTemplateEditor();
     }
+    // Check if we're on the combine templates page
+    else if (document.getElementById('templates-list-container')) {
+        loadCombineTemplatesPage();
+    }
 
     // Add event listeners for navigation
     if (viewDeficienciesBtn) {
@@ -515,80 +519,29 @@ function loadInspectionPage() {
         storedDescriptions = getStoredDeficiencyDescriptions();
     }
 
-    // Create and display items
-    itemsToUse.forEach(item => {
-        const itemElement = document.createElement('div');
-        itemElement.className = 'inspection-item';
+    // Check if items are grouped by sections (combined template)
+    const isCombinedTemplate = itemsToUse.length > 0 && itemsToUse[0].section && itemsToUse[0].items;
 
-        // Get saved status for this item, default to 'pending'
-        const savedStatus = savedResults[item.id] || 'pending';
+    if (isCombinedTemplate) {
+        // Display items grouped by sections
+        itemsToUse.forEach(sectionGroup => {
+            // Add section header
+            const sectionHeader = document.createElement('div');
+            sectionHeader.className = 'template-section-header';
+            sectionHeader.innerHTML = `<h3>${sectionGroup.section}</h3>`;
+            itemsContainer.appendChild(sectionHeader);
 
-        itemElement.innerHTML = `
-            <div class="item-info">
-                <div class="item-name">${item.name}</div>
-                <div class="item-description">${item.description}</div>
-            </div>
-            <div class="button-group">
-                <button class="btn-pass ${savedStatus === 'pass' ? 'active' : ''}" data-id="${item.id}">PASS</button>
-                <button class="btn-fail ${savedStatus === 'fail' ? 'active' : ''}" data-id="${item.id}">FAIL</button>
-                ${savedStatus !== 'pending' ? `<span class="status-label ${savedStatus === 'pass' ? 'status-pass' : 'status-fail'}">${savedStatus === 'pass' ? 'PASSED' : 'FAILED'}</span>` : ''}
-            </div>
-        `;
-        itemElement.setAttribute('data-id', item.id);
-
-        itemsContainer.appendChild(itemElement);
-        
-        // If the item is marked as failed and has stored descriptions, show them
-        if (savedStatus === 'fail' && storedDescriptions[item.id] && storedDescriptions[item.id].length > 0) {
-            // Create the deficiency display section with collapsible header
-            const deficiencyDisplay = document.createElement('div');
-            deficiencyDisplay.id = `deficiency-display-${item.id}`;
-            deficiencyDisplay.className = 'deficiency-display';
-
-            // Create header with toggle
-            const displayHeader = document.createElement('div');
-            displayHeader.className = 'deficiency-display-header';
-            displayHeader.innerHTML = `
-                <h4>Added Deficiencies</h4>
-                <button type="button" class="toggle-button" data-target="deficiency-display-content-${item.id}">
-                    <span class="toggle-icon">▼</span>
-                </button>
-            `;
-
-            deficiencyDisplay.appendChild(displayHeader);
-
-            // Create content section
-            const displayContent = document.createElement('div');
-            displayContent.id = `deficiency-display-content-${item.id}`;
-            displayContent.className = 'deficiency-display-content';
-
-            // Add each stored description
-            storedDescriptions[item.id].forEach(desc => {
-                const descParagraph = document.createElement('p');
-                descParagraph.textContent = desc;
-                displayContent.appendChild(descParagraph);
+            // Add items for this section
+            sectionGroup.items.forEach(item => {
+                createInspectionItem(item, savedResults, storedDescriptions, itemsContainer);
             });
-
-            deficiencyDisplay.appendChild(displayContent);
-
-            itemElement.appendChild(deficiencyDisplay);
-
-            // Add toggle functionality to the display section
-            const displayToggle = displayHeader.querySelector('.toggle-button');
-            displayToggle.addEventListener('click', function() {
-                const targetId = this.getAttribute('data-target');
-                const targetElement = document.getElementById(targetId);
-                
-                if (targetElement.style.display === 'none') {
-                    targetElement.style.display = 'block';
-                    this.querySelector('.toggle-icon').textContent = '▼';
-                } else {
-                    targetElement.style.display = 'none';
-                    this.querySelector('.toggle-icon').textContent = '▶';
-                }
-            });
-        }
-    });
+        });
+    } else {
+        // Display items flat (regular template)
+        itemsToUse.forEach(item => {
+            createInspectionItem(item, savedResults, storedDescriptions, itemsContainer);
+        });
+    }
 
     // Add event listeners to the buttons
     document.querySelectorAll('.btn-pass').forEach(button => {
@@ -1454,29 +1407,41 @@ function loadTemplatesPage() {
         return;
     }
 
-    // Sort templates by date (newest first)
-    allTemplates.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    // Split templates into combined and regular
+    const combinedTemplates = allTemplates.filter(t => t.isCombined === true);
+    const regularTemplates = allTemplates.filter(t => t.isCombined !== true);
 
-    // Create and display template cards
-    allTemplates.forEach(template => {
-        const templateCard = document.createElement('div');
-        templateCard.className = 'template-card';
+    // Sort by date (newest first)
+    combinedTemplates.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    regularTemplates.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
-        const itemCount = template.items ? template.items.length : 0;
+    // Create Combined Templates section (if any)
+    if (combinedTemplates.length > 0) {
+        const combinedSection = document.createElement('div');
+        combinedSection.className = 'templates-section';
+        combinedSection.innerHTML = '<h2 class="section-header combined-header">Combined Templates</h2><div class="template-cards" id="combined-cards-container"></div>';
+        templateCardsContainer.appendChild(combinedSection);
 
-        templateCard.innerHTML = `
-            <button class="btn-delete-template-card" data-template-id="${template.id}" title="Delete template"><i class="fas fa-trash"></i></button>
-            <h3>${template.title}</h3>
-            <p><strong>Items:</strong> ${itemCount}</p>
-            <p><strong>Created:</strong> ${template.createdAt}</p>
-            <div class="template-actions">
-                <button class="btn-primary btn-edit-template" data-template-id="${template.id}">Edit</button>
-                <button class="btn-secondary btn-use-template" data-template-id="${template.id}">Use for Inspection</button>
-            </div>
-        `;
+        const combinedCardsContainer = combinedSection.querySelector('#combined-cards-container');
+        combinedTemplates.forEach(template => {
+            const templateCard = createTemplateCard(template);
+            combinedCardsContainer.appendChild(templateCard);
+        });
+    }
 
-        templateCardsContainer.appendChild(templateCard);
-    });
+    // Create Templates section (if any)
+    if (regularTemplates.length > 0) {
+        const regularSection = document.createElement('div');
+        regularSection.className = 'templates-section';
+        regularSection.innerHTML = '<h2 class="section-header regular-header">Templates</h2><div class="template-cards" id="regular-cards-container"></div>';
+        templateCardsContainer.appendChild(regularSection);
+
+        const regularCardsContainer = regularSection.querySelector('#regular-cards-container');
+        regularTemplates.forEach(template => {
+            const templateCard = createTemplateCard(template);
+            regularCardsContainer.appendChild(templateCard);
+        });
+    }
 
     // Add event listeners to the buttons
     document.querySelectorAll('.btn-edit-template').forEach(button => {
@@ -1515,6 +1480,42 @@ function loadTemplatesPage() {
             }
         });
     });
+}
+
+// Create a template card element
+function createTemplateCard(template) {
+    const templateCard = document.createElement('div');
+    templateCard.className = 'template-card';
+
+    // Count items (handle both flat and grouped items)
+    let itemCount = 0;
+    if (template.items && template.items.length > 0) {
+        if (template.items[0].section) {
+            // Grouped items (combined template)
+            template.items.forEach(section => {
+                itemCount += section.items ? section.items.length : 0;
+            });
+        } else {
+            // Flat items (regular template)
+            itemCount = template.items.length;
+        }
+    }
+
+    const combinedBadge = template.isCombined ? '<span class="combined-badge">Combined</span>' : '';
+
+    templateCard.innerHTML = `
+        <button class="btn-delete-template-card" data-template-id="${template.id}" title="Delete template"><i class="fas fa-trash"></i></button>
+        ${combinedBadge}
+        <h3>${template.title}</h3>
+        <p><strong>Items:</strong> ${itemCount}</p>
+        <p><strong>Created:</strong> ${template.createdAt}</p>
+        <div class="template-actions">
+            <button class="btn-primary btn-edit-template" data-template-id="${template.id}">Edit</button>
+            <button class="btn-secondary btn-use-template" data-template-id="${template.id}">Use for Inspection</button>
+        </div>
+    `;
+
+    return templateCard;
 }
 
 // Create a new template
@@ -1737,4 +1738,261 @@ function deleteTemplate(templateId) {
 
     // Reload the page to update the display
     location.reload();
+}
+
+// ==================== COMBINE TEMPLATES FUNCTIONS ====================
+
+// Load the combine templates page
+function loadCombineTemplatesPage() {
+    const templatesListContainer = document.getElementById('templates-list-container');
+    if (!templatesListContainer) return;
+
+    // Get all templates
+    const allTemplates = JSON.parse(localStorage.getItem('deficiencyTemplates') || '[]');
+
+    // Clear the container
+    templatesListContainer.innerHTML = '';
+
+    if (allTemplates.length === 0) {
+        templatesListContainer.innerHTML = '<p>No templates available. Create some templates first.</p>';
+        return;
+    }
+
+    // Create template selection list
+    allTemplates.forEach(template => {
+        const itemCount = template.items ? template.items.length : 0;
+        
+        const templateCheck = document.createElement('div');
+        templateCheck.className = 'template-check-item';
+        templateCheck.innerHTML = `
+            <label class="template-check-label">
+                <input type="checkbox" class="template-select" data-template-id="${template.id}" data-template-name="${template.title}">
+                <span class="template-check-text">
+                    <strong>${template.title}</strong>
+                    <span class="item-count-badge">${itemCount} items</span>
+                </span>
+            </label>
+        `;
+        
+        templatesListContainer.appendChild(templateCheck);
+    });
+
+    // Add change event listeners to checkboxes
+    document.querySelectorAll('.template-select').forEach(checkbox => {
+        checkbox.addEventListener('change', function() {
+            previewCombinedItems();
+        });
+    });
+
+    // Add click event to create combined button
+    const createCombinedBtn = document.getElementById('create-combined-btn');
+    if (createCombinedBtn) {
+        createCombinedBtn.addEventListener('click', function() {
+            createCombinedTemplate();
+        });
+    }
+}
+
+// Preview combined items from selected templates
+function previewCombinedItems() {
+    const previewContainer = document.getElementById('combined-items-preview');
+    const totalCountSpan = document.getElementById('total-item-count');
+    
+    if (!previewContainer || !totalCountSpan) return;
+
+    // Get selected templates
+    const selectedCheckboxes = document.querySelectorAll('.template-select:checked');
+    
+    if (selectedCheckboxes.length === 0) {
+        previewContainer.innerHTML = '<p class="preview-info">Select templates above to preview combined items</p>';
+        totalCountSpan.textContent = '0';
+        return;
+    }
+
+    // Collect all items from selected templates
+    const allItems = [];
+    const allTemplates = JSON.parse(localStorage.getItem('deficiencyTemplates') || '[]');
+
+    selectedCheckboxes.forEach(checkbox => {
+        const templateId = parseInt(checkbox.getAttribute('data-template-id'));
+        const template = allTemplates.find(t => t.id === templateId);
+        
+        if (template && template.items) {
+            template.items.forEach(item => {
+                allItems.push({
+                    ...item,
+                    sourceTemplate: template.title
+                });
+            });
+        }
+    });
+
+    // Display preview
+    if (allItems.length === 0) {
+        previewContainer.innerHTML = '<p class="preview-info">Selected templates have no items</p>';
+        totalCountSpan.textContent = '0';
+        return;
+    }
+
+    let previewHtml = '<div class="preview-items-list">';
+    allItems.forEach((item, index) => {
+        previewHtml += `
+            <div class="preview-item">
+                <span class="item-number">${index + 1}.</span>
+                <span class="item-name">${item.name}</span>
+                <span class="item-source">from "${item.sourceTemplate}"</span>
+            </div>
+        `;
+    });
+    previewHtml += '</div>';
+
+    previewContainer.innerHTML = previewHtml;
+    totalCountSpan.textContent = allItems.length;
+}
+
+// Create combined template
+function createCombinedTemplate() {
+    const templateNameInput = document.getElementById('combined-template-name');
+    const newName = templateNameInput ? templateNameInput.value.trim() : '';
+
+    if (!newName) {
+        alert('Please enter a name for the combined template.');
+        return;
+    }
+
+    // Get selected templates
+    const selectedCheckboxes = document.querySelectorAll('.template-select:checked');
+
+    if (selectedCheckboxes.length === 0) {
+        alert('Please select at least one template to combine.');
+        return;
+    }
+
+    // Collect items grouped by source template
+    const groupedItems = [];
+    const allTemplates = JSON.parse(localStorage.getItem('deficiencyTemplates') || '[]');
+    const seenItems = new Set(); // To avoid duplicates across all templates
+
+    selectedCheckboxes.forEach(checkbox => {
+        const templateId = parseInt(checkbox.getAttribute('data-template-id'));
+        const templateName = checkbox.getAttribute('data-template-name');
+        const template = allTemplates.find(t => t.id === templateId);
+
+        if (template && template.items) {
+            const sectionItems = [];
+            
+            template.items.forEach(item => {
+                // Avoid duplicate items (by name)
+                const itemKey = item.name.toLowerCase();
+                if (!seenItems.has(itemKey)) {
+                    seenItems.add(itemKey);
+                    sectionItems.push({
+                        id: Date.now() + Math.random(), // Unique ID
+                        name: item.name,
+                        description: item.description || ''
+                    });
+                }
+            });
+
+            // Only add section if it has items
+            if (sectionItems.length > 0) {
+                groupedItems.push({
+                    section: templateName,
+                    items: sectionItems
+                });
+            }
+        }
+    });
+
+    if (groupedItems.length === 0) {
+        alert('Selected templates have no items to combine.');
+        return;
+    }
+
+    // Create new combined template with grouped items
+    const newTemplate = {
+        id: Date.now(),
+        title: newName,
+        items: groupedItems, // Store as grouped sections
+        createdAt: new Date().toLocaleDateString(),
+        combinedFrom: Array.from(selectedCheckboxes).map(cb => cb.getAttribute('data-template-name')),
+        isCombined: true
+    };
+
+    // Save to localStorage
+    allTemplates.push(newTemplate);
+    localStorage.setItem('deficiencyTemplates', JSON.stringify(allTemplates));
+
+    // Show success and redirect
+    alert(`Combined template "${newName}" created with ${groupedItems.length} sections!`);
+    window.location.href = 'templates.html';
+}
+
+// Helper function to create an inspection item element
+function createInspectionItem(item, savedResults, storedDescriptions, container) {
+    const itemElement = document.createElement('div');
+    itemElement.className = 'inspection-item';
+
+    // Get saved status for this item, default to 'pending'
+    const savedStatus = savedResults[item.id] || 'pending';
+
+    itemElement.innerHTML = `
+        <div class="item-info">
+            <div class="item-name">${item.name}</div>
+            <div class="item-description">${item.description}</div>
+        </div>
+        <div class="button-group">
+            <button class="btn-pass ${savedStatus === 'pass' ? 'active' : ''}" data-id="${item.id}">PASS</button>
+            <button class="btn-fail ${savedStatus === 'fail' ? 'active' : ''}" data-id="${item.id}">FAIL</button>
+            ${savedStatus !== 'pending' ? `<span class="status-label ${savedStatus === 'pass' ? 'status-pass' : 'status-fail'}">${savedStatus === 'pass' ? 'PASSED' : 'FAILED'}</span>` : ''}
+        </div>
+    `;
+    itemElement.setAttribute('data-id', item.id);
+
+    container.appendChild(itemElement);
+
+    // If the item is marked as failed and has stored descriptions, show them
+    if (savedStatus === 'fail' && storedDescriptions[item.id] && storedDescriptions[item.id].length > 0) {
+        const deficiencyDisplay = document.createElement('div');
+        deficiencyDisplay.id = `deficiency-display-${item.id}`;
+        deficiencyDisplay.className = 'deficiency-display';
+
+        const displayHeader = document.createElement('div');
+        displayHeader.className = 'deficiency-display-header';
+        displayHeader.innerHTML = `
+            <h4>Added Deficiencies</h4>
+            <button type="button" class="toggle-button" data-target="deficiency-display-content-${item.id}">
+                <span class="toggle-icon">▼</span>
+            </button>
+        `;
+
+        deficiencyDisplay.appendChild(displayHeader);
+
+        const displayContent = document.createElement('div');
+        displayContent.id = `deficiency-display-content-${item.id}`;
+        displayContent.className = 'deficiency-display-content';
+
+        storedDescriptions[item.id].forEach(desc => {
+            const descParagraph = document.createElement('p');
+            descParagraph.textContent = desc;
+            displayContent.appendChild(descParagraph);
+        });
+
+        deficiencyDisplay.appendChild(displayContent);
+        itemElement.appendChild(deficiencyDisplay);
+
+        const displayToggle = displayHeader.querySelector('.toggle-button');
+        displayToggle.addEventListener('click', function() {
+            const targetId = this.getAttribute('data-target');
+            const targetElement = document.getElementById(targetId);
+
+            if (targetElement.style.display === 'none') {
+                targetElement.style.display = 'block';
+                this.querySelector('.toggle-icon').textContent = '▼';
+            } else {
+                targetElement.style.display = 'none';
+                this.querySelector('.toggle-icon').textContent = '▶';
+            }
+        });
+    }
 }

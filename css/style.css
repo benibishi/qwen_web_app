@@ -751,9 +751,9 @@ header h1 {
 
 /* Template styles */
 .template-cards {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-    gap: 20px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 15px;
     margin-top: 20px;
 }
 
@@ -764,27 +764,8 @@ header h1 {
     background-color: #f9f9f9;
     box-shadow: 0 2px 4px rgba(0,0,0,0.1);
     cursor: pointer;
-    transition: box-shadow 0.3s;
-}
-
-.template-card:hover {
-    box-shadow: 0 4px 8px rgba(0,0,0,0.15);
-}
-
-.template-card h3 {
-    color: #2c3e50;
-    margin-bottom: 10px;
-}
-
-.template-card p {
-    margin: 5px 0;
-    color: #666;
-}
-
-.template-actions {
-    margin-top: 15px;
-    display: flex;
-    gap: 10px;
+    flex: 0 0 auto;
+    width: 280px;
 }
 
 .btn-delete-template-card {
@@ -813,6 +794,23 @@ header h1 {
     background-color: #e74c3c;
     color: white;
     border-color: #e74c3c;
+}
+
+.template-card h3 {
+    color: #2c3e50;
+    margin-bottom: 10px;
+    margin-top: 15px;
+}
+
+.template-card p {
+    margin: 5px 0;
+    color: #666;
+}
+
+.template-actions {
+    margin-top: 15px;
+    display: flex;
+    gap: 10px;
 }
 
 .template-card {
@@ -902,6 +900,178 @@ header h1 {
 
 .btn-delete-template:hover {
     background-color: #c0392b;
+}
+
+/* Combine Templates styles */
+.template-actions-header {
+    display: flex;
+    gap: 10px;
+}
+
+/* Templates sections */
+.templates-section {
+    margin-bottom: 30px;
+}
+
+.templates-section .section-header {
+    color: #2c3e50;
+    border-bottom: 2px solid #3498db;
+    padding-bottom: 10px;
+    margin-bottom: 20px;
+    font-size: 1.3rem;
+}
+
+.templates-section:first-of-type .section-header {
+    border-bottom-color: #f39c12;
+}
+
+.combined-badge {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    background-color: #9b59b6;
+    color: white;
+    padding: 3px 8px;
+    border-radius: 12px;
+    font-size: 0.7rem;
+    font-weight: bold;
+}
+
+.template-card {
+    position: relative;
+}
+
+/* Inspection section headers */
+.template-section-header {
+    background-color: #f39c12;
+    color: white;
+    padding: 10px 15px;
+    margin: 15px 0 10px 0;
+    border-radius: 4px;
+}
+
+.template-section-header h3 {
+    margin: 0;
+    color: white;
+    font-size: 1.1rem;
+}
+
+.template-section-header:first-of-type {
+    margin-top: 0;
+}
+
+.combine-templates {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 30px;
+    margin-top: 20px;
+}
+
+.template-selection,
+.combined-preview {
+    background-color: #f8f9fa;
+    padding: 20px;
+    border-radius: 8px;
+    border: 1px solid #ddd;
+}
+
+.template-selection h2,
+.combined-preview h2 {
+    margin-bottom: 15px;
+    font-size: 1.2rem;
+    color: #2c3e50;
+}
+
+.template-check-item {
+    padding: 10px;
+    margin-bottom: 8px;
+    background-color: white;
+    border-radius: 4px;
+    border: 1px solid #ddd;
+}
+
+.template-check-label {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    width: 100%;
+}
+
+.template-check-text {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+}
+
+.item-count-badge {
+    background-color: #3498db;
+    color: white;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+}
+
+.preview-items-list {
+    max-height: 400px;
+    overflow-y: auto;
+    background-color: white;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 10px;
+    margin-top: 10px;
+}
+
+.preview-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px;
+    margin-bottom: 5px;
+    background-color: #f8f9fa;
+    border-radius: 4px;
+    font-size: 0.9rem;
+}
+
+.preview-item:last-child {
+    margin-bottom: 0;
+}
+
+.item-number {
+    font-weight: bold;
+    color: #3498db;
+    min-width: 25px;
+}
+
+.item-name {
+    flex-grow: 1;
+    color: #2c3e50;
+}
+
+.item-source {
+    font-size: 0.8rem;
+    color: #666;
+    font-style: italic;
+}
+
+.preview-info {
+    color: #666;
+    font-style: italic;
+    padding: 20px;
+    text-align: center;
+}
+
+.item-count {
+    margin-top: 15px;
+    font-weight: bold;
+    color: #2c3e50;
+}
+
+@media (max-width: 768px) {
+    .combine-templates {
+        grid-template-columns: 1fr;
+    }
 }
 
 @media (max-width: 600px) {
