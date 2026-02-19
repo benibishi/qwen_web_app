@@ -32,6 +32,10 @@ document.addEventListener('DOMContentLoaded', function() {
     else if (document.getElementById('template-items-container')) {
         loadTemplateEditor();
     }
+    // Check if we're on the combine templates page
+    else if (document.getElementById('templates-list-container')) {
+        loadCombineTemplatesPage();
+    }
 
     // Add event listeners for navigation
     if (viewDeficienciesBtn) {
@@ -345,10 +349,31 @@ function generateSpecificReportPdf(report) {
         const templateData = JSON.parse(localStorage.getItem('templateItemsForInspection') || '{}');
         reportItems = templateData.items || [];
     }
-    const failedItems = reportItems.filter(item => report.results[item.id] === 'fail');
     
+    // Handle combined templates (items grouped by sections)
+    let allItems = [];
+    if (reportItems.length > 0 && reportItems[0] && reportItems[0].section && reportItems[0].items) {
+        // Combined template - flatten the grouped items
+        reportItems.forEach(sectionGroup => {
+            if (sectionGroup.items) {
+                allItems = allItems.concat(sectionGroup.items);
+            }
+        });
+    } else {
+        // Regular template - items are flat
+        allItems = reportItems;
+    }
+    
+    // Find failed items using string ID comparison
+    const failedItems = allItems.filter(item => {
+        const itemId = String(item.id);
+        return report.results[itemId] === 'fail' || report.results[item.id] === 'fail';
+    });
+
     console.log('PDF Export Debug:', {
         reportItems: reportItems.length,
+        allItems: allItems.length,
+        isCombinedTemplate: reportItems.length > 0 && reportItems[0] && reportItems[0].section,
         reportResults: report.results,
         failedItems: failedItems.length,
         reportDescriptions: report.descriptions
@@ -379,10 +404,11 @@ function generateSpecificReportPdf(report) {
             yPos += lines * 6 + 5;
 
             // Add the stored deficiency descriptions if they exist
-            const itemDescriptions = report.descriptions[item.id] || report.descriptions[String(item.id)];
+            const itemId = String(item.id);
+            const itemDescriptions = report.descriptions[itemId] || report.descriptions[item.id];
             if (itemDescriptions && itemDescriptions.length > 0) {
                 itemDescriptions.forEach((desc, descIndex) => {
-                    const deficiencyKey = `${item.id}_${descIndex}`;
+                    const deficiencyKey = `${itemId}_${descIndex}`;
                     const isCompleted = completedDeficiencies[deficiencyKey] === true;
 
                     // Draw checkbox
@@ -515,80 +541,29 @@ function loadInspectionPage() {
         storedDescriptions = getStoredDeficiencyDescriptions();
     }
 
-    // Create and display items
-    itemsToUse.forEach(item => {
-        const itemElement = document.createElement('div');
-        itemElement.className = 'inspection-item';
+    // Check if items are grouped by sections (combined template)
+    const isCombinedTemplate = itemsToUse.length > 0 && itemsToUse[0].section && itemsToUse[0].items;
 
-        // Get saved status for this item, default to 'pending'
-        const savedStatus = savedResults[item.id] || 'pending';
+    if (isCombinedTemplate) {
+        // Display items grouped by sections
+        itemsToUse.forEach(sectionGroup => {
+            // Add section header
+            const sectionHeader = document.createElement('div');
+            sectionHeader.className = 'template-section-header';
+            sectionHeader.innerHTML = `<h3>${sectionGroup.section}</h3>`;
+            itemsContainer.appendChild(sectionHeader);
 
-        itemElement.innerHTML = `
-            <div class="item-info">
-                <div class="item-name">${item.name}</div>
-                <div class="item-description">${item.description}</div>
-            </div>
-            <div class="button-group">
-                <button class="btn-pass ${savedStatus === 'pass' ? 'active' : ''}" data-id="${item.id}">PASS</button>
-                <button class="btn-fail ${savedStatus === 'fail' ? 'active' : ''}" data-id="${item.id}">FAIL</button>
-                ${savedStatus !== 'pending' ? `<span class="status-label ${savedStatus === 'pass' ? 'status-pass' : 'status-fail'}">${savedStatus === 'pass' ? 'PASSED' : 'FAILED'}</span>` : ''}
-            </div>
-        `;
-        itemElement.setAttribute('data-id', item.id);
-
-        itemsContainer.appendChild(itemElement);
-        
-        // If the item is marked as failed and has stored descriptions, show them
-        if (savedStatus === 'fail' && storedDescriptions[item.id] && storedDescriptions[item.id].length > 0) {
-            // Create the deficiency display section with collapsible header
-            const deficiencyDisplay = document.createElement('div');
-            deficiencyDisplay.id = `deficiency-display-${item.id}`;
-            deficiencyDisplay.className = 'deficiency-display';
-
-            // Create header with toggle
-            const displayHeader = document.createElement('div');
-            displayHeader.className = 'deficiency-display-header';
-            displayHeader.innerHTML = `
-                <h4>Added Deficiencies</h4>
-                <button type="button" class="toggle-button" data-target="deficiency-display-content-${item.id}">
-                    <span class="toggle-icon">▼</span>
-                </button>
-            `;
-
-            deficiencyDisplay.appendChild(displayHeader);
-
-            // Create content section
-            const displayContent = document.createElement('div');
-            displayContent.id = `deficiency-display-content-${item.id}`;
-            displayContent.className = 'deficiency-display-content';
-
-            // Add each stored description
-            storedDescriptions[item.id].forEach(desc => {
-                const descParagraph = document.createElement('p');
-                descParagraph.textContent = desc;
-                displayContent.appendChild(descParagraph);
+            // Add items for this section
+            sectionGroup.items.forEach(item => {
+                createInspectionItem(item, savedResults, storedDescriptions, itemsContainer);
             });
-
-            deficiencyDisplay.appendChild(displayContent);
-
-            itemElement.appendChild(deficiencyDisplay);
-
-            // Add toggle functionality to the display section
-            const displayToggle = displayHeader.querySelector('.toggle-button');
-            displayToggle.addEventListener('click', function() {
-                const targetId = this.getAttribute('data-target');
-                const targetElement = document.getElementById(targetId);
-                
-                if (targetElement.style.display === 'none') {
-                    targetElement.style.display = 'block';
-                    this.querySelector('.toggle-icon').textContent = '▼';
-                } else {
-                    targetElement.style.display = 'none';
-                    this.querySelector('.toggle-icon').textContent = '▶';
-                }
-            });
-        }
-    });
+        });
+    } else {
+        // Display items flat (regular template)
+        itemsToUse.forEach(item => {
+            createInspectionItem(item, savedResults, storedDescriptions, itemsContainer);
+        });
+    }
 
     // Add event listeners to the buttons
     document.querySelectorAll('.btn-pass').forEach(button => {
@@ -608,11 +583,26 @@ function loadDeficienciesPage() {
     // Get saved results and find failed items
     const savedResults = getSavedResults();
     const storedDescriptions = getStoredDeficiencyDescriptions();
-    
+
     // Get items from template or use empty array
     const templateData = JSON.parse(localStorage.getItem('templateItemsForInspection') || '{}');
-    const templateItems = templateData.items || [];
-    const failedItems = templateItems.filter(item => savedResults[item.id] === 'fail');
+    let templateItems = templateData.items || [];
+    
+    // Handle combined templates (items grouped by sections)
+    let allItems = [];
+    if (templateItems.length > 0 && templateItems[0].section && templateItems[0].items) {
+        // Combined template - flatten the grouped items
+        templateItems.forEach(sectionGroup => {
+            if (sectionGroup.items) {
+                allItems = allItems.concat(sectionGroup.items);
+            }
+        });
+    } else {
+        // Regular template - items are flat
+        allItems = templateItems;
+    }
+    
+    const failedItems = allItems.filter(item => savedResults[item.id] === 'fail');
 
     if (failedItems.length === 0) {
         deficienciesContainer.innerHTML = '<p>No deficiencies found. All items have passed inspection.</p>';
@@ -741,112 +731,30 @@ function loadViewReportPage() {
         reportItems = templateData.items || [];
     }
 
+    // Check if items are grouped by sections (combined template)
+    const isCombinedTemplate = reportItems.length > 0 && reportItems[0] && reportItems[0].section && reportItems[0].items;
+
     // Create and display all items with their status
-    reportItems.forEach(item => {
-        const itemElement = document.createElement('div');
-        itemElement.className = 'inspection-item';
+    if (isCombinedTemplate) {
+        // Display items grouped by sections
+        reportItems.forEach(sectionGroup => {
+            // Add section header
+            const sectionHeader = document.createElement('div');
+            sectionHeader.className = 'template-section-header';
+            sectionHeader.innerHTML = `<h3>${sectionGroup.section}</h3>`;
+            reportItemsContainer.appendChild(sectionHeader);
 
-        // Get status for this item
-        const status = report.results[item.id] || 'pending';
-        const statusClass = status === 'pass' ? 'status-pass' : (status === 'fail' ? 'status-fail' : '');
-        const statusText = status === 'pass' ? 'PASSED' : (status === 'fail' ? 'FAILED' : 'PENDING');
-
-        itemElement.innerHTML = `
-            <div class="item-info">
-                <div class="item-name">${item.name}</div>
-                <div class="item-description">${item.description}</div>
-            </div>
-            <div class="button-group">
-                <span class="status-badge ${statusClass}">${statusText}</span>
-            </div>
-        `;
-
-        // If the item failed and has descriptions, show them with checkboxes
-        if (status === 'fail' && storedDescriptions[item.id] && storedDescriptions[item.id].length > 0) {
-            const deficiencyDisplay = document.createElement('div');
-            deficiencyDisplay.id = `deficiency-display-${item.id}`;
-            deficiencyDisplay.className = 'deficiency-display';
-
-            // Create header with toggle
-            const displayHeader = document.createElement('div');
-            displayHeader.className = 'deficiency-display-header';
-            displayHeader.innerHTML = `
-                <h4>Deficiency Details</h4>
-                <button type="button" class="toggle-button" data-target="deficiency-display-content-${item.id}">
-                    <span class="toggle-icon">▼</span>
-                </button>
-            `;
-
-            deficiencyDisplay.appendChild(displayHeader);
-
-            // Create content section
-            const displayContent = document.createElement('div');
-            displayContent.id = `deficiency-display-content-${item.id}`;
-            displayContent.className = 'deficiency-display-content';
-
-            // Add each stored description with checkbox
-            storedDescriptions[item.id].forEach((desc, descIndex) => {
-                const deficiencyKey = `${item.id}_${descIndex}`;
-                const isCompleted = completedDeficiencies[deficiencyKey] === true;
-
-                const deficiencyRow = document.createElement('div');
-                deficiencyRow.className = 'deficiency-item-row';
-                if (isCompleted) {
-                    deficiencyRow.classList.add('deficiency-complete');
-                }
-
-                const descParagraph = document.createElement('p');
-                descParagraph.className = 'deficiency-text';
-                descParagraph.textContent = desc;
-                if (isCompleted) {
-                    descParagraph.classList.add('deficiency-complete');
-                }
-
-                const checkbox = document.createElement('input');
-                checkbox.type = 'checkbox';
-                checkbox.className = 'deficiency-checkbox';
-                checkbox.checked = isCompleted;
-                checkbox.dataset.deficiencyKey = deficiencyKey;
-                checkbox.title = 'Mark as complete';
-
-                deficiencyRow.appendChild(checkbox);
-                deficiencyRow.appendChild(descParagraph);
-                displayContent.appendChild(deficiencyRow);
-
-                // Add checkbox change event listener
-                checkbox.addEventListener('change', function() {
-                    toggleDeficiencyComplete(reportId, deficiencyKey, this.checked);
-                    if (this.checked) {
-                        deficiencyRow.classList.add('deficiency-complete');
-                        descParagraph.classList.add('deficiency-complete');
-                    } else {
-                        deficiencyRow.classList.remove('deficiency-complete');
-                        descParagraph.classList.remove('deficiency-complete');
-                    }
-                });
+            // Add items for this section
+            sectionGroup.items.forEach(item => {
+                createReportItemElement(item, report, reportItemsContainer, storedDescriptions, completedDeficiencies);
             });
-
-            deficiencyDisplay.appendChild(displayContent);
-            itemElement.appendChild(deficiencyDisplay);
-
-            // Add toggle functionality
-            const displayToggle = displayHeader.querySelector('.toggle-button');
-            displayToggle.addEventListener('click', function() {
-                const targetId = this.getAttribute('data-target');
-                const targetElement = document.getElementById(targetId);
-
-                if (targetElement.style.display === 'none') {
-                    targetElement.style.display = 'block';
-                    this.querySelector('.toggle-icon').textContent = '▼';
-                } else {
-                    targetElement.style.display = 'none';
-                    this.querySelector('.toggle-icon').textContent = '▶';
-                }
-            });
-        }
-
-        reportItemsContainer.appendChild(itemElement);
-    });
+        });
+    } else {
+        // Display items flat (regular template)
+        reportItems.forEach(item => {
+            createReportItemElement(item, report, reportItemsContainer, storedDescriptions, completedDeficiencies);
+        });
+    }
 
     // Add event listener for PDF export button
     const exportPdfBtn = document.getElementById('export-pdf-btn');
@@ -862,6 +770,115 @@ function loadViewReportPage() {
             loadViewReportPage();
         }
     });
+}
+
+// Helper function to create a report item element with status and deficiencies
+function createReportItemElement(item, report, container, storedDescriptions, completedDeficiencies) {
+    const itemElement = document.createElement('div');
+    itemElement.className = 'inspection-item';
+
+    // Get status for this item (use string ID to match)
+    const itemId = String(item.id);
+    const status = report.results[itemId] || report.results[item.id] || 'pending';
+    const statusClass = status === 'pass' ? 'status-pass' : (status === 'fail' ? 'status-fail' : '');
+    const statusText = status === 'pass' ? 'PASSED' : (status === 'fail' ? 'FAILED' : 'PENDING');
+
+    itemElement.innerHTML = `
+        <div class="item-info">
+            <div class="item-name">${item.name}</div>
+            <div class="item-description">${item.description}</div>
+        </div>
+        <div class="button-group">
+            <span class="status-badge ${statusClass}">${statusText}</span>
+        </div>
+    `;
+
+    container.appendChild(itemElement);
+
+    // If the item failed and has descriptions, show them with checkboxes
+    if (status === 'fail' && storedDescriptions[itemId] && storedDescriptions[itemId].length > 0) {
+        const deficiencyDisplay = document.createElement('div');
+        deficiencyDisplay.id = `deficiency-display-${itemId}`;
+        deficiencyDisplay.className = 'deficiency-display';
+
+        // Create header with toggle (no delete button for completed reports)
+        const displayHeader = document.createElement('div');
+        displayHeader.className = 'deficiency-display-header';
+        displayHeader.innerHTML = `
+            <h4>Deficiency Details</h4>
+            <button type="button" class="toggle-button" data-target="deficiency-display-content-${itemId}">
+                <span class="toggle-icon">▼</span>
+            </button>
+        `;
+
+        deficiencyDisplay.appendChild(displayHeader);
+
+        // Create content section
+        const displayContent = document.createElement('div');
+        displayContent.id = `deficiency-display-content-${itemId}`;
+        displayContent.className = 'deficiency-display-content';
+
+        // Add each stored description with checkbox (no delete button for completed reports)
+        storedDescriptions[itemId].forEach((desc, descIndex) => {
+            const deficiencyKey = `${itemId}_${descIndex}`;
+            const isCompleted = completedDeficiencies[deficiencyKey] === true;
+
+            const deficiencyRow = document.createElement('div');
+            deficiencyRow.className = 'deficiency-item-row';
+            if (isCompleted) {
+                deficiencyRow.classList.add('deficiency-complete');
+            }
+
+            const descParagraph = document.createElement('p');
+            descParagraph.className = 'deficiency-text';
+            descParagraph.textContent = desc;
+            if (isCompleted) {
+                descParagraph.classList.add('deficiency-complete');
+            }
+
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.className = 'deficiency-checkbox';
+            checkbox.checked = isCompleted;
+            checkbox.dataset.deficiencyKey = deficiencyKey;
+            checkbox.title = 'Mark as complete';
+
+            deficiencyRow.appendChild(checkbox);
+            deficiencyRow.appendChild(descParagraph);
+            displayContent.appendChild(deficiencyRow);
+
+            // Add checkbox change event listener
+            checkbox.addEventListener('change', function() {
+                const reportId = report.id;
+                toggleDeficiencyComplete(reportId, deficiencyKey, this.checked);
+                if (this.checked) {
+                    deficiencyRow.classList.add('deficiency-complete');
+                    descParagraph.classList.add('deficiency-complete');
+                } else {
+                    deficiencyRow.classList.remove('deficiency-complete');
+                    descParagraph.classList.remove('deficiency-complete');
+                }
+            });
+        });
+
+        deficiencyDisplay.appendChild(displayContent);
+        itemElement.appendChild(deficiencyDisplay);
+
+        // Add toggle functionality
+        const displayToggle = displayHeader.querySelector('.toggle-button');
+        displayToggle.addEventListener('click', function() {
+            const targetId = this.getAttribute('data-target');
+            const targetElement = document.getElementById(targetId);
+
+            if (targetElement.style.display === 'none') {
+                targetElement.style.display = 'block';
+                this.querySelector('.toggle-icon').textContent = '▼';
+            } else {
+                targetElement.style.display = 'none';
+                this.querySelector('.toggle-icon').textContent = '▶';
+            }
+        });
+    }
 }
 
 // Toggle deficiency completion status
@@ -883,36 +900,131 @@ function toggleDeficiencyComplete(reportId, deficiencyKey, isCompleted) {
     localStorage.setItem('inspectionReports', JSON.stringify(allReports));
 }
 
+// Delete an individual deficiency item
+function deleteIndividualDeficiency(reportId, itemId, descIndex, rowElement, container) {
+    if (!confirm('Are you sure you want to delete this deficiency?')) {
+        return;
+    }
+
+    const allReports = JSON.parse(localStorage.getItem('inspectionReports') || '[]');
+    const reportIndex = allReports.findIndex(r => r.id === reportId);
+
+    if (reportIndex === -1) return;
+
+    const report = allReports[reportIndex];
+
+    // Remove the deficiency description
+    if (report.descriptions[itemId] && report.descriptions[itemId][descIndex]) {
+        report.descriptions[itemId].splice(descIndex, 1);
+
+        // Remove the deficiency key from completedDeficiencies
+        const deficiencyKey = `${itemId}_${descIndex}`;
+        if (report.completedDeficiencies[deficiencyKey] !== undefined) {
+            delete report.completedDeficiencies[deficiencyKey];
+        }
+
+        // Re-index remaining deficiencies
+        const newDescriptions = [];
+        report.descriptions[itemId].forEach((desc, newIndex) => {
+            newDescriptions.push(desc);
+            // Update completed status for re-indexed items
+            const oldKey = `${itemId}_${newIndex + (newIndex >= descIndex ? 1 : 0)}`;
+            const newKey = `${itemId}_${newIndex}`;
+            if (report.completedDeficiencies[oldKey]) {
+                report.completedDeficiencies[newKey] = true;
+                delete report.completedDeficiencies[oldKey];
+            }
+        });
+        report.descriptions[itemId] = newDescriptions;
+
+        // Save back to localStorage
+        localStorage.setItem('inspectionReports', JSON.stringify(allReports));
+
+        // Remove the row from the UI
+        rowElement.remove();
+
+        // If no more deficiencies, remove the entire section
+        const deficiencyDisplay = document.getElementById(`deficiency-display-${itemId}`);
+        if (deficiencyDisplay && report.descriptions[itemId].length === 0) {
+            deficiencyDisplay.remove();
+        }
+    }
+}
+
+// Delete an entire deficiency section for an item
+function deleteDeficiencySection(reportId, itemId, sectionElement, container) {
+    if (!confirm('Are you sure you want to delete all deficiencies for this item?')) {
+        return;
+    }
+
+    const allReports = JSON.parse(localStorage.getItem('inspectionReports') || '[]');
+    const reportIndex = allReports.findIndex(r => r.id === reportId);
+
+    if (reportIndex === -1) return;
+
+    const report = allReports[reportIndex];
+
+    // Remove all deficiency descriptions for this item
+    if (report.descriptions[itemId]) {
+        // Remove all related completedDeficiencies keys
+        Object.keys(report.completedDeficiencies).forEach(key => {
+            if (key.startsWith(`${itemId}_`)) {
+                delete report.completedDeficiencies[key];
+            }
+        });
+
+        // Remove all descriptions for this item
+        delete report.descriptions[itemId];
+
+        // Save back to localStorage
+        localStorage.setItem('inspectionReports', JSON.stringify(allReports));
+
+        // Remove the section from the UI
+        sectionElement.remove();
+    }
+}
+
 
 // Handle PASS button click
 function handlePassClick(event) {
-    const itemId = parseInt(event.target.getAttribute('data-id'));
-    
+    console.log('PASS clicked:', event.target);
+    const itemId = event.target.getAttribute('data-id');
+    console.log('Item ID:', itemId);
+
     // Save the result
     saveResult(itemId, 'pass');
-    
+
     // Update UI
     updateButtonStates(itemId, 'pass');
 }
 
 // Handle FAIL button click
 function handleFailClick(event) {
-    const itemId = parseInt(event.target.getAttribute('data-id'));
-    
+    console.log('FAIL clicked:', event.target);
+    const itemId = event.target.getAttribute('data-id');
+    console.log('Item ID:', itemId);
+
     // Save the result
     saveResult(itemId, 'fail');
-    
+
     // Update UI
     updateButtonStates(itemId, 'fail');
-    
+
     // Show the deficiency description section for this item
     showDeficiencyDescriptionSection(itemId);
 }
 
 // Show the deficiency description section for a specific item
 function showDeficiencyDescriptionSection(itemId) {
+    console.log('showDeficiencyDescriptionSection called for ID:', itemId);
+    
     const itemElement = document.querySelector(`.inspection-item[data-id="${itemId}"]`);
-    if (!itemElement) return;
+    console.log('Item element found:', itemElement);
+    
+    if (!itemElement) {
+        console.error('Item element not found for ID:', itemId);
+        return;
+    }
 
     // Check if the section already exists
     const existingSection = document.getElementById(`deficiency-desc-${itemId}`);
@@ -961,12 +1073,24 @@ function showDeficiencyDescriptionSection(itemId) {
         this.style.height = Math.min(this.scrollHeight, 200) + 'px';
     });
 
+    // Add Enter key support for textarea (Ctrl+Enter or just Enter to submit)
+    textarea.addEventListener('keypress', function(e) {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            // Trigger the OK button click
+            const okBtn = contentSection.querySelector('.btn-ok');
+            if (okBtn) {
+                okBtn.click();
+            }
+        }
+    });
+
     // Add event listener to the toggle button
     const toggleButton = headerSection.querySelector('.toggle-button');
     toggleButton.addEventListener('click', function() {
         const targetId = this.getAttribute('data-target');
         const targetElement = document.getElementById(targetId);
-        
+
         if (targetElement.style.display === 'none') {
             targetElement.style.display = 'block';
             this.querySelector('.toggle-icon').textContent = '▼';
@@ -991,17 +1115,23 @@ function showDeficiencyDescriptionSection(itemId) {
 
             // Create a display div if it doesn't exist
             let displayDiv = document.getElementById(`deficiency-display-${itemId}`);
+            
             if (!displayDiv) {
                 displayDiv = document.createElement('div');
 
-                // Create header with toggle for the display section too
+                // Create header with toggle and delete button for the display section too
                 const displayHeader = document.createElement('div');
                 displayHeader.className = 'deficiency-display-header';
                 displayHeader.innerHTML = `
                     <h4>Added Deficiencies</h4>
-                    <button type="button" class="toggle-button" data-target="deficiency-display-content-${itemId}">
-                        <span class="toggle-icon">▼</span>
-                    </button>
+                    <div class="deficiency-header-actions">
+                        <button type="button" class="btn-delete-deficiency-section" data-item-id="${itemId}" title="Delete all deficiencies for this item">
+                            <i class="fas fa-trash"></i> Delete Section
+                        </button>
+                        <button type="button" class="toggle-button" data-target="deficiency-display-content-${itemId}">
+                            <span class="toggle-icon">▼</span>
+                        </button>
+                    </div>
                 `;
 
                 displayDiv.appendChild(displayHeader);
@@ -1022,7 +1152,7 @@ function showDeficiencyDescriptionSection(itemId) {
                 displayToggle.addEventListener('click', function() {
                     const targetId = this.getAttribute('data-target');
                     const targetElement = document.getElementById(targetId);
-                    
+
                     if (targetElement.style.display === 'none') {
                         targetElement.style.display = 'block';
                         this.querySelector('.toggle-icon').textContent = '▼';
@@ -1031,18 +1161,152 @@ function showDeficiencyDescriptionSection(itemId) {
                         this.querySelector('.toggle-icon').textContent = '▶';
                     }
                 });
+
+                // Add delete section button event listener
+                const deleteSectionBtn = displayHeader.querySelector('.btn-delete-deficiency-section');
+                if (deleteSectionBtn) {
+                    deleteSectionBtn.addEventListener('click', function() {
+                        const descInput = document.getElementById(`deficiency-desc-input-${itemId}`);
+                        const clickedItemId = this.dataset.itemId;
+                        deleteDeficiencySectionActiveInspection(clickedItemId, displayDiv, descInput);
+                    });
+                }
+            } else {
+                // Display div already exists - check if it has a delete section button
+                const displayHeader = displayDiv.querySelector('.deficiency-display-header');
+                if (displayHeader && !displayHeader.querySelector('.btn-delete-deficiency-section')) {
+                    // Add delete section button to existing header
+                    const actionsDiv = displayHeader.querySelector('.deficiency-header-actions');
+                    if (!actionsDiv) {
+                        // Convert existing toggle button to use actions div
+                        const existingToggle = displayHeader.querySelector('.toggle-button');
+                        
+                        const newActionsDiv = document.createElement('div');
+                        newActionsDiv.className = 'deficiency-header-actions';
+                        newActionsDiv.innerHTML = `
+                            <button type="button" class="btn-delete-deficiency-section" data-item-id="${itemId}" title="Delete all deficiencies for this item">
+                                <i class="fas fa-trash"></i> Delete Section
+                            </button>
+                        `;
+                        
+                        if (existingToggle) {
+                            newActionsDiv.appendChild(existingToggle);
+                        }
+                        
+                        // Remove old toggle button from header
+                        if (existingToggle) {
+                            existingToggle.remove();
+                        }
+                        
+                        displayHeader.appendChild(newActionsDiv);
+                        
+                        // Add delete section button event listener
+                        const deleteSectionBtn = newActionsDiv.querySelector('.btn-delete-deficiency-section');
+                        if (deleteSectionBtn) {
+                            deleteSectionBtn.addEventListener('click', function() {
+                                const descInput = document.getElementById(`deficiency-desc-input-${itemId}`);
+                                deleteDeficiencySectionActiveInspection(itemId, displayDiv, descInput);
+                            });
+                        }
+                    }
+                }
             }
 
             // Add the description to the display content
             const descParagraph = document.createElement('p');
             descParagraph.textContent = description;
+            descParagraph.className = 'deficiency-text';
+
+            // Get current stored descriptions to find the index
+            const currentStoredDescriptions = getStoredDeficiencyDescriptions();
+
+            // Add delete button for individual deficiency
+            const deleteBtn = document.createElement('button');
+            deleteBtn.className = 'btn-delete-deficiency-item';
+            deleteBtn.textContent = '×';  // Use Unicode multiply sign instead of Font Awesome
+            deleteBtn.title = 'Delete this deficiency';
+            deleteBtn.dataset.descIndex = currentStoredDescriptions[itemId] ? currentStoredDescriptions[itemId].length - 1 : 0;
+            deleteBtn.dataset.itemId = itemId;
+            // Inline styles to ensure visibility
+            deleteBtn.style.color = '#e74c3c';
+            deleteBtn.style.background = 'none';
+            deleteBtn.style.border = 'none';
+            deleteBtn.style.cursor = 'pointer';
+            deleteBtn.style.fontSize = '20px';
+            deleteBtn.style.padding = '4px 8px';
+            deleteBtn.style.lineHeight = '1';
+            deleteBtn.style.fontWeight = 'bold';
+
             const displayContent = displayDiv.querySelector('.deficiency-display-content');
-            displayContent.appendChild(descParagraph);
+
+            // Create a container for the paragraph and delete button
+            const descContainer = document.createElement('div');
+            descContainer.className = 'deficiency-item-row';
+            descContainer.style.display = 'flex';
+            descContainer.style.alignItems = 'center';
+            descContainer.style.gap = '10px';
+            descContainer.appendChild(descParagraph);
+            descContainer.appendChild(deleteBtn);
+
+            displayContent.appendChild(descContainer);
+
+            // Add delete button event listener
+            deleteBtn.addEventListener('click', function() {
+                const descIndex = parseInt(this.dataset.descIndex);
+                const clickedItemId = this.dataset.itemId;
+                deleteIndividualDeficiencyActiveInspection(clickedItemId, descIndex, descContainer, displayDiv, displayContent);
+            });
 
             // Clear the input field
             descInput.value = '';
         }
     });
+}
+
+// Delete individual deficiency in active inspection
+function deleteIndividualDeficiencyActiveInspection(itemId, descIndex, rowElement, displayDiv, displayContent) {
+    let storedDescriptions = JSON.parse(localStorage.getItem('storedDeficiencyDescriptions') || '{}');
+    
+    if (storedDescriptions[itemId] && storedDescriptions[itemId][descIndex]) {
+        // Remove the description
+        storedDescriptions[itemId].splice(descIndex, 1);
+        
+        // Save back to localStorage
+        localStorage.setItem('storedDeficiencyDescriptions', JSON.stringify(storedDescriptions));
+        
+        // Remove the row from UI
+        rowElement.remove();
+        
+        // If no more deficiencies, remove the entire section
+        if (storedDescriptions[itemId].length === 0) {
+            displayDiv.remove();
+        }
+    }
+}
+
+// Delete deficiency section in active inspection
+function deleteDeficiencySectionActiveInspection(itemId, displayDiv, descInput) {
+    if (!confirm('Are you sure you want to delete all deficiencies for this item?')) {
+        return;
+    }
+    
+    let storedDescriptions = JSON.parse(localStorage.getItem('storedDeficiencyDescriptions') || '{}');
+    
+    if (storedDescriptions[itemId]) {
+        // Remove all descriptions for this item
+        delete storedDescriptions[itemId];
+        
+        // Save back to localStorage
+        localStorage.setItem('storedDeficiencyDescriptions', JSON.stringify(storedDescriptions));
+        
+        // Remove the section from UI
+        displayDiv.remove();
+        
+        // Clear input if it exists
+        if (descInput) {
+            descInput.value = '';
+        }
+    }
 }
 
 // Store deficiency description in localStorage
@@ -1091,11 +1355,30 @@ function generatePdfReport() {
     // Get saved results and find failed items
     const savedResults = getSavedResults();
     const storedDescriptions = getStoredDeficiencyDescriptions();
-    
+
     // Get items from template or use empty array
     const templateData = JSON.parse(localStorage.getItem('templateItemsForInspection') || '{}');
-    const templateItems = templateData.items || [];
-    const failedItems = templateItems.filter(item => savedResults[item.id] === 'fail');
+    let templateItems = templateData.items || [];
+    
+    // Handle combined templates (items grouped by sections)
+    let allItems = [];
+    if (templateItems.length > 0 && templateItems[0] && templateItems[0].section && templateItems[0].items) {
+        // Combined template - flatten the grouped items
+        templateItems.forEach(sectionGroup => {
+            if (sectionGroup.items) {
+                allItems = allItems.concat(sectionGroup.items);
+            }
+        });
+    } else {
+        // Regular template - items are flat
+        allItems = templateItems;
+    }
+    
+    // Find failed items using string ID comparison
+    const failedItems = allItems.filter(item => {
+        const itemId = String(item.id);
+        return savedResults[itemId] === 'fail' || savedResults[item.id] === 'fail';
+    });
 
     // Add deficiencies list
     let yPos = 90;
@@ -1119,7 +1402,8 @@ function generatePdfReport() {
             yPos += lines * 6 + 5;
 
             // Add the stored deficiency descriptions if they exist
-            const itemDescriptions = storedDescriptions[item.id] || storedDescriptions[String(item.id)];
+            const itemId = String(item.id);
+            const itemDescriptions = storedDescriptions[itemId] || storedDescriptions[item.id];
             if (itemDescriptions && itemDescriptions.length > 0) {
                 itemDescriptions.forEach(desc => {
                     // Indent the user-provided notes
@@ -1163,9 +1447,11 @@ function generatePdfReport() {
 
 // Save result to localStorage
 function saveResult(itemId, status) {
+    console.log('saveResult called:', { itemId, status });
     let results = getSavedResults();
     results[itemId] = status;
     localStorage.setItem('inspectionResults', JSON.stringify(results));
+    console.log('Results saved:', results);
 }
 
 // Get saved results from localStorage
@@ -1186,8 +1472,14 @@ function clearInspectionData() {
 // Update button states after selection and show status label
 function updateButtonStates(itemId, status) {
     const itemElement = document.querySelector(`.inspection-item[data-id="${itemId}"]`);
-    const passBtn = document.querySelector(`.btn-pass[data-id="${itemId}"]`);
-    const failBtn = document.querySelector(`.btn-fail[data-id="${itemId}"]`);
+    
+    if (!itemElement) {
+        console.error('Item element not found for ID:', itemId);
+        return;
+    }
+    
+    const passBtn = itemElement.querySelector(`.btn-pass[data-id="${itemId}"]`);
+    const failBtn = itemElement.querySelector(`.btn-fail[data-id="${itemId}"]`);
 
     // Remove existing status label if any
     const existingLabel = itemElement.querySelector('.status-label');
@@ -1200,20 +1492,22 @@ function updateButtonStates(itemId, status) {
     statusLabel.className = 'status-label';
 
     if (status === 'pass') {
-        passBtn.classList.add('active');
-        failBtn.classList.remove('active');
+        if (passBtn) passBtn.classList.add('active');
+        if (failBtn) failBtn.classList.remove('active');
         statusLabel.textContent = 'PASSED';
         statusLabel.classList.add('status-pass');
     } else {
-        passBtn.classList.remove('active');
-        failBtn.classList.add('active');
+        if (passBtn) passBtn.classList.remove('active');
+        if (failBtn) failBtn.classList.add('active');
         statusLabel.textContent = 'FAILED';
         statusLabel.classList.add('status-fail');
     }
 
     // Insert status label after the button group
     const buttonGroup = itemElement.querySelector('.button-group');
-    buttonGroup.appendChild(statusLabel);
+    if (buttonGroup) {
+        buttonGroup.appendChild(statusLabel);
+    }
 }
 
 // Post the inspection
@@ -1315,18 +1609,46 @@ document.addEventListener('DOMContentLoaded', function() {
     const closeBtn = document.querySelector('.close');
     const cancelModalBtn = document.getElementById('cancel-modal');
     const inspectionForm = document.getElementById('inspection-form');
-    
+    const templateSelect = document.getElementById('template-select');
+
     // Check if we're on the reports page
     if (startInspectionBtn) {
         startInspectionBtn.addEventListener('click', function() {
             // Check if any templates exist
             const allTemplates = JSON.parse(localStorage.getItem('deficiencyTemplates') || '[]');
-            
+
             if (allTemplates.length === 0) {
                 alert('No templates available. Please create a template first.');
                 return;
             }
-            
+
+            // Populate template dropdown
+            if (templateSelect) {
+                templateSelect.innerHTML = '<option value="">-- Select a Template --</option>';
+                
+                allTemplates.forEach(template => {
+                    // Count items (handle both flat and grouped items)
+                    let itemCount = 0;
+                    if (template.items && template.items.length > 0) {
+                        if (template.items[0].section) {
+                            // Grouped items (combined template)
+                            template.items.forEach(section => {
+                                itemCount += section.items ? section.items.length : 0;
+                            });
+                        } else {
+                            // Flat items (regular template)
+                            itemCount = template.items.length;
+                        }
+                    }
+                    
+                    const combinedBadge = template.isCombined ? ' (Combined)' : '';
+                    const option = document.createElement('option');
+                    option.value = template.id;
+                    option.textContent = `${template.title}${combinedBadge} (${itemCount} items)`;
+                    templateSelect.appendChild(option);
+                });
+            }
+
             // Clear existing inspection data for a fresh start
             clearInspectionData();
             modal.style.display = 'block';
@@ -1351,17 +1673,34 @@ document.addEventListener('DOMContentLoaded', function() {
     if (inspectionForm) {
         inspectionForm.addEventListener('submit', function(e) {
             e.preventDefault();
-            
+
             // Get form values
             const jobAddress = document.getElementById('job-address').value;
             const superintendent = document.getElementById('superintendent').value;
             const framingContractor = document.getElementById('framing-contractor').value;
-            
+            const selectedTemplateId = document.getElementById('template-select').value;
+
+            if (!selectedTemplateId) {
+                alert('Please select a template.');
+                return;
+            }
+
+            // Get the selected template and store its items
+            const allTemplates = JSON.parse(localStorage.getItem('deficiencyTemplates') || '[]');
+            const template = allTemplates.find(t => t.id === parseInt(selectedTemplateId));
+
+            if (template) {
+                localStorage.setItem('templateItemsForInspection', JSON.stringify({
+                    templateId: template.id,
+                    items: template.items || []
+                }));
+            }
+
             // Save to localStorage
             localStorage.setItem('jobAddress', jobAddress);
             localStorage.setItem('superintendent', superintendent);
             localStorage.setItem('framingContractor', framingContractor);
-            
+
             // Close modal
             modal.style.display = 'none';
 
@@ -1473,6 +1812,13 @@ function loadTemplatesPage() {
     // Get saved templates
     const allTemplates = JSON.parse(localStorage.getItem('deficiencyTemplates') || '[]');
 
+    console.log('Templates Debug:', {
+        total: allTemplates.length,
+        combined: allTemplates.filter(t => t.isCombined === true).length,
+        regular: allTemplates.filter(t => t.isCombined !== true).length,
+        allTemplates: allTemplates
+    });
+
     // Clear the container
     templateCardsContainer.innerHTML = '';
 
@@ -1481,29 +1827,41 @@ function loadTemplatesPage() {
         return;
     }
 
-    // Sort templates by date (newest first)
-    allTemplates.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    // Split templates into combined and regular
+    const combinedTemplates = allTemplates.filter(t => t.isCombined === true);
+    const regularTemplates = allTemplates.filter(t => t.isCombined !== true);
 
-    // Create and display template cards
-    allTemplates.forEach(template => {
-        const templateCard = document.createElement('div');
-        templateCard.className = 'template-card';
+    // Sort by date (newest first)
+    combinedTemplates.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    regularTemplates.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
-        const itemCount = template.items ? template.items.length : 0;
+    // Create Combined Templates section (if any)
+    if (combinedTemplates.length > 0) {
+        const combinedSection = document.createElement('div');
+        combinedSection.className = 'templates-section';
+        combinedSection.innerHTML = '<h2 class="section-header combined-header">Combined Templates</h2><div class="template-cards" id="combined-cards-container"></div>';
+        templateCardsContainer.appendChild(combinedSection);
 
-        templateCard.innerHTML = `
-            <button class="btn-delete-template-card" data-template-id="${template.id}" title="Delete template"><i class="fas fa-trash"></i></button>
-            <h3>${template.title}</h3>
-            <p><strong>Items:</strong> ${itemCount}</p>
-            <p><strong>Created:</strong> ${template.createdAt}</p>
-            <div class="template-actions">
-                <button class="btn-primary btn-edit-template" data-template-id="${template.id}">Edit</button>
-                <button class="btn-secondary btn-use-template" data-template-id="${template.id}">Use for Inspection</button>
-            </div>
-        `;
+        const combinedCardsContainer = combinedSection.querySelector('#combined-cards-container');
+        combinedTemplates.forEach(template => {
+            const templateCard = createTemplateCard(template);
+            combinedCardsContainer.appendChild(templateCard);
+        });
+    }
 
-        templateCardsContainer.appendChild(templateCard);
-    });
+    // Create Templates section (if any)
+    if (regularTemplates.length > 0) {
+        const regularSection = document.createElement('div');
+        regularSection.className = 'templates-section';
+        regularSection.innerHTML = '<h2 class="section-header regular-header">Templates</h2><div class="template-cards" id="regular-cards-container"></div>';
+        templateCardsContainer.appendChild(regularSection);
+
+        const regularCardsContainer = regularSection.querySelector('#regular-cards-container');
+        regularTemplates.forEach(template => {
+            const templateCard = createTemplateCard(template);
+            regularCardsContainer.appendChild(templateCard);
+        });
+    }
 
     // Add event listeners to the buttons
     document.querySelectorAll('.btn-edit-template').forEach(button => {
@@ -1542,6 +1900,42 @@ function loadTemplatesPage() {
             }
         });
     });
+}
+
+// Create a template card element
+function createTemplateCard(template) {
+    const templateCard = document.createElement('div');
+    templateCard.className = 'template-card';
+
+    // Count items (handle both flat and grouped items)
+    let itemCount = 0;
+    if (template.items && template.items.length > 0) {
+        if (template.items[0].section) {
+            // Grouped items (combined template)
+            template.items.forEach(section => {
+                itemCount += section.items ? section.items.length : 0;
+            });
+        } else {
+            // Flat items (regular template)
+            itemCount = template.items.length;
+        }
+    }
+
+    const combinedBadge = template.isCombined ? '<span class="combined-badge">Combined</span>' : '';
+
+    templateCard.innerHTML = `
+        <button class="btn-delete-template-card" data-template-id="${template.id}" title="Delete template"><i class="fas fa-trash"></i></button>
+        ${combinedBadge}
+        <h3>${template.title}</h3>
+        <p><strong>Items:</strong> ${itemCount}</p>
+        <p><strong>Created:</strong> ${template.createdAt}</p>
+        <div class="template-actions">
+            <button class="btn-primary btn-edit-template" data-template-id="${template.id}">Edit</button>
+            <button class="btn-secondary btn-use-template" data-template-id="${template.id}">Use for Inspection</button>
+        </div>
+    `;
+
+    return templateCard;
 }
 
 // Create a new template
@@ -1598,12 +1992,82 @@ function loadTemplateEditor() {
     // Load template items
     loadTemplateItems(template, templateItemsContainer);
 
-    // Add event listener for add item button
-    const addItemBtn = document.getElementById('add-item-btn');
-    if (addItemBtn) {
-        addItemBtn.addEventListener('click', function() {
-            addTemplateItem(templateId);
+    // Add event listener for add section button
+    const addSectionBtn = document.getElementById('add-section-btn');
+    if (addSectionBtn) {
+        addSectionBtn.addEventListener('click', function() {
+            addSectionToTemplate(templateId);
         });
+    }
+
+    // Add event listener for add flat item button
+    const addItemFlatBtn = document.getElementById('add-item-flat-btn');
+    if (addItemFlatBtn) {
+        addItemFlatBtn.addEventListener('click', function() {
+            addItemFlatToTemplate(templateId);
+        });
+    }
+
+    // Add Enter key support for section name input
+    const sectionNameInput = document.getElementById('section-name');
+    if (sectionNameInput) {
+        sectionNameInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                addSectionToTemplate(templateId);
+            }
+        });
+    }
+
+    // Add Enter key support for item name input in section mode
+    const itemNameInput = document.getElementById('item-name');
+    if (itemNameInput) {
+        itemNameInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                addSectionToTemplate(templateId);
+            }
+        });
+    }
+
+    // Add Enter key support for flat item name input
+    const itemNameFlatInput = document.getElementById('item-name-flat');
+    if (itemNameFlatInput) {
+        itemNameFlatInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                addItemFlatToTemplate(templateId);
+            }
+        });
+    }
+
+    // Toggle between section mode and item mode forms based on radio selection
+    const addTypeRadios = document.querySelectorAll('input[name="add-type"]');
+    const sectionModeForm = document.getElementById('section-mode-form');
+    const itemModeForm = document.getElementById('item-mode-form');
+
+    addTypeRadios.forEach(radio => {
+        radio.addEventListener('change', function() {
+            if (this.value === 'section') {
+                sectionModeForm.style.display = 'block';
+                itemModeForm.style.display = 'none';
+            } else {
+                sectionModeForm.style.display = 'none';
+                itemModeForm.style.display = 'block';
+            }
+        });
+    });
+
+    // Initialize form visibility
+    const checkedRadio = document.querySelector('input[name="add-type"]:checked');
+    if (checkedRadio) {
+        if (checkedRadio.value === 'section') {
+            sectionModeForm.style.display = 'block';
+            itemModeForm.style.display = 'none';
+        } else {
+            sectionModeForm.style.display = 'none';
+            itemModeForm.style.display = 'block';
+        }
     }
 
     // Add event listener for post button
@@ -1618,6 +2082,7 @@ function loadTemplateEditor() {
 
 // Load and display template items
 function loadTemplateItems(template, container) {
+    const templateId = template.id;
     container.innerHTML = '';
 
     if (!template.items || template.items.length === 0) {
@@ -1625,33 +2090,243 @@ function loadTemplateItems(template, container) {
         return;
     }
 
-    template.items.forEach((item, index) => {
-        const itemElement = document.createElement('div');
-        itemElement.className = 'template-item';
+    // Display items - sections first, then flat items
+    let flatItemIndex = 0;
 
-        itemElement.innerHTML = `
-            <div class="template-item-info">
-                <div class="template-item-name">${item.name}</div>
-            </div>
-            <button class="btn-delete-template" data-item-index="${index}">Delete</button>
-        `;
+    template.items.forEach((itemGroup, arrayIndex) => {
+        // Check if this is a section (has section property) or a flat item
+        if (itemGroup.section && itemGroup.items) {
+            // This is a section with items - use the actual array index
+            const sectionDiv = document.createElement('div');
+            sectionDiv.className = 'template-select-section';
 
-        container.appendChild(itemElement);
+            let itemsHtml = '';
+            let sectionItems = itemGroup.items || [];
+
+            sectionItems.forEach((item, itemIndex) => {
+                itemsHtml += `
+                    <li class="template-item-list-item">
+                        <span class="item-name-text">${item.name}</span>
+                        <button class="btn-delete-template-item" data-array-index="${arrayIndex}" data-item-index="${itemIndex}" title="Delete item">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </li>
+                `;
+            });
+
+            sectionDiv.innerHTML = `
+                <div class="template-select-header">
+                    <button class="collapse-toggle" data-array-index="${arrayIndex}" title="Collapse/Expand section">
+                        <i class="fas fa-chevron-down"></i>
+                    </button>
+                    <span class="template-select-title">
+                        <strong>${itemGroup.section}</strong>
+                        <span class="item-count-badge">${sectionItems.length} items</span>
+                    </span>
+                    <button class="btn-delete-section" data-array-index="${arrayIndex}" title="Delete entire section">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+                <div class="section-content" id="section-content-${arrayIndex}">
+                    <ul class="template-items-list-display">${itemsHtml}</ul>
+                    <div class="section-add-item-form" data-array-index="${arrayIndex}">
+                        <div class="form-group section-item-input-group">
+                            <label for="item-name-section-${arrayIndex}">Item Name:</label>
+                            <input type="text" id="item-name-section-${arrayIndex}" placeholder="e.g., Wall Plate Alignment">
+                        </div>
+                        <div class="form-actions">
+                            <button class="btn-add-item-to-section btn-secondary" data-array-index="${arrayIndex}">Add Item</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            container.appendChild(sectionDiv);
+
+            // Restore collapse state (sections that were expanded stay expanded)
+            const sectionContent = document.getElementById(`section-content-${arrayIndex}`);
+            const collapseBtn = container.querySelector(`.collapse-toggle[data-array-index="${arrayIndex}"]`);
+            
+            if (sectionContent && collapseBtn) {
+                // Check if this section was previously collapsed
+                const wasCollapsed = getSectionCollapseState(templateId, arrayIndex);
+                
+                if (wasCollapsed) {
+                    sectionContent.classList.add('collapsed');
+                    const icon = collapseBtn.querySelector('i');
+                    icon.classList.remove('fa-chevron-down');
+                    icon.classList.add('fa-chevron-right');
+                } else {
+                    // Section should be expanded by default
+                    sectionContent.classList.remove('collapsed');
+                    const icon = collapseBtn.querySelector('i');
+                    icon.classList.remove('fa-chevron-right');
+                    icon.classList.add('fa-chevron-down');
+                }
+            }
+        } else if (itemGroup.name) {
+            // This is a flat item (no section)
+            const itemElement = document.createElement('div');
+            itemElement.className = 'template-item flat-item';
+
+            itemElement.innerHTML = `
+                <div class="template-item-info">
+                    <div class="template-item-name">${itemGroup.name}</div>
+                </div>
+                <button class="btn-delete-flat-item" data-flat-item-index="${flatItemIndex}" title="Delete item">
+                    <i class="fas fa-trash"></i>
+                </button>
+            `;
+
+            container.appendChild(itemElement);
+            flatItemIndex++;
+        }
     });
 
-    // Add event listeners to delete buttons
-    container.querySelectorAll('.btn-delete-template').forEach(button => {
+    // Add event listeners to delete buttons for sections
+    container.querySelectorAll('.btn-delete-template-item').forEach(button => {
         button.addEventListener('click', function() {
+            const arrayIndex = parseInt(this.getAttribute('data-array-index'));
             const itemIndex = parseInt(this.getAttribute('data-item-index'));
-            deleteTemplateItem(template.id, itemIndex);
+            deleteSectionItem(templateId, arrayIndex, itemIndex);
+        });
+    });
+
+    // Add event listeners to delete buttons for flat items
+    container.querySelectorAll('.btn-delete-flat-item').forEach(button => {
+        button.addEventListener('click', function() {
+            const flatItemIndex = parseInt(this.getAttribute('data-flat-item-index'));
+            deleteFlatItem(templateId, flatItemIndex);
+        });
+    });
+
+    // Add event listeners to "Add Item to Section" buttons
+    container.querySelectorAll('.btn-add-item-to-section').forEach(button => {
+        button.addEventListener('click', function() {
+            const arrayIndex = parseInt(this.getAttribute('data-array-index'));
+            const inputField = document.getElementById(`item-name-section-${arrayIndex}`);
+            const itemName = inputField.value.trim();
+
+            if (!itemName) {
+                alert('Please enter an item name.');
+                return;
+            }
+
+            addItemToSection(templateId, arrayIndex, itemName);
+            inputField.value = '';
+        });
+    });
+
+    // Add Enter key support for "Add Item to Section" input fields
+    container.querySelectorAll('.section-item-input-group input').forEach(inputField => {
+        inputField.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                const arrayIndex = this.closest('.section-add-item-form').getAttribute('data-array-index');
+                const itemName = this.value.trim();
+
+                if (!itemName) {
+                    alert('Please enter an item name.');
+                    return;
+                }
+
+                addItemToSection(templateId, arrayIndex, itemName);
+                this.value = '';
+            }
+        });
+    });
+
+    // Add event listeners to delete section buttons
+    container.querySelectorAll('.btn-delete-section').forEach(button => {
+        button.addEventListener('click', function() {
+            const arrayIndex = parseInt(this.getAttribute('data-array-index'));
+            deleteSection(templateId, arrayIndex);
+        });
+    });
+
+    // Add event listeners to collapse toggle buttons
+    container.querySelectorAll('.collapse-toggle').forEach(button => {
+        button.addEventListener('click', function() {
+            const arrayIndex = parseInt(this.getAttribute('data-array-index'));
+            toggleSectionCollapse(templateId, arrayIndex);
         });
     });
 }
 
-// Add an item to the template
-function addTemplateItem(templateId) {
-    const itemNameInput = document.getElementById('item-name');
+// Add a section (empty, items will be added separately) to the template
+function addSectionToTemplate(templateId) {
+    const sectionNameInput = document.getElementById('section-name');
+    const sectionName = sectionNameInput ? sectionNameInput.value.trim() : '';
 
+    if (!sectionName) {
+        alert('Please enter a section name.');
+        return;
+    }
+
+    // Get the template
+    const allTemplates = JSON.parse(localStorage.getItem('deficiencyTemplates') || '[]');
+    const templateIndex = allTemplates.findIndex(t => t.id === templateId);
+
+    if (templateIndex === -1) {
+        alert('Template not found.');
+        return;
+    }
+
+    const template = allTemplates[templateIndex];
+
+    // Initialize items array if not exists
+    if (!template.items) {
+        template.items = [];
+    }
+
+    // Add a new empty section (items will be added via the form under the section)
+    template.items.push({
+        section: sectionName,
+        items: []
+    });
+
+    // Save back to localStorage
+    localStorage.setItem('deficiencyTemplates', JSON.stringify(allTemplates));
+
+    // Clear input
+    sectionNameInput.value = '';
+
+    // Reload the items list
+    loadTemplateItems(allTemplates[templateIndex], document.getElementById('template-items-container'));
+}
+
+// Add an item to a specific section
+function addItemToSection(templateId, arrayIndex, itemName) {
+    // Get the template
+    const allTemplates = JSON.parse(localStorage.getItem('deficiencyTemplates') || '[]');
+    const templateIndex = allTemplates.findIndex(t => t.id === templateId);
+
+    if (templateIndex === -1) {
+        alert('Template not found.');
+        return;
+    }
+
+    const template = allTemplates[templateIndex];
+
+    // Add item to the specified section
+    if (template.items[arrayIndex] && template.items[arrayIndex].items) {
+        template.items[arrayIndex].items.push({
+            id: Date.now(),
+            name: itemName,
+            description: ''
+        });
+    }
+
+    // Save back to localStorage
+    localStorage.setItem('deficiencyTemplates', JSON.stringify(allTemplates));
+
+    // Reload the items list
+    loadTemplateItems(allTemplates[templateIndex], document.getElementById('template-items-container'));
+}
+
+// Add a flat item (no section) to the template
+function addItemFlatToTemplate(templateId) {
+    const itemNameInput = document.getElementById('item-name-flat');
     const itemName = itemNameInput.value.trim();
 
     if (!itemName) {
@@ -1668,13 +2343,15 @@ function addTemplateItem(templateId) {
         return;
     }
 
+    const template = allTemplates[templateIndex];
+
     // Initialize items array if not exists
-    if (!allTemplates[templateIndex].items) {
-        allTemplates[templateIndex].items = [];
+    if (!template.items) {
+        template.items = [];
     }
 
-    // Add the new item
-    allTemplates[templateIndex].items.push({
+    // Add a flat item (no section)
+    template.items.push({
         id: Date.now(),
         name: itemName,
         description: ''
@@ -1690,8 +2367,8 @@ function addTemplateItem(templateId) {
     loadTemplateItems(allTemplates[templateIndex], document.getElementById('template-items-container'));
 }
 
-// Delete an item from the template
-function deleteTemplateItem(templateId, itemIndex) {
+// Delete an item from a section
+function deleteSectionItem(templateId, arrayIndex, itemIndex) {
     // Get the template
     const allTemplates = JSON.parse(localStorage.getItem('deficiencyTemplates') || '[]');
     const templateIndex = allTemplates.findIndex(t => t.id === templateId);
@@ -1701,14 +2378,134 @@ function deleteTemplateItem(templateId, itemIndex) {
         return;
     }
 
-    // Remove the item
-    allTemplates[templateIndex].items.splice(itemIndex, 1);
+    const template = allTemplates[templateIndex];
+
+    // Delete item from section
+    if (template.items[arrayIndex] && template.items[arrayIndex].items) {
+        template.items[arrayIndex].items.splice(itemIndex, 1);
+
+        // Remove empty sections
+        if (template.items[arrayIndex].items.length === 0) {
+            template.items.splice(arrayIndex, 1);
+        }
+    }
 
     // Save back to localStorage
     localStorage.setItem('deficiencyTemplates', JSON.stringify(allTemplates));
 
     // Reload the items list
     loadTemplateItems(allTemplates[templateIndex], document.getElementById('template-items-container'));
+}
+
+// Toggle section collapse/expand
+function toggleSectionCollapse(templateId, arrayIndex) {
+    const sectionContent = document.getElementById(`section-content-${arrayIndex}`);
+    const collapseBtn = document.querySelector(`.collapse-toggle[data-array-index="${arrayIndex}"]`);
+    
+    if (!sectionContent || !collapseBtn) return;
+    
+    // Toggle collapsed state
+    sectionContent.classList.toggle('collapsed');
+    
+    // Update icon
+    const icon = collapseBtn.querySelector('i');
+    if (sectionContent.classList.contains('collapsed')) {
+        icon.classList.remove('fa-chevron-down');
+        icon.classList.add('fa-chevron-right');
+    } else {
+        icon.classList.remove('fa-chevron-right');
+        icon.classList.add('fa-chevron-down');
+    }
+    
+    // Save collapse state to localStorage
+    saveSectionCollapseState(templateId, arrayIndex, sectionContent.classList.contains('collapsed'));
+}
+
+// Save section collapse state to localStorage
+function saveSectionCollapseState(templateId, arrayIndex, isCollapsed) {
+    const collapseStates = JSON.parse(localStorage.getItem('sectionCollapseStates') || '{}');
+    const key = `${templateId}_${arrayIndex}`;
+    collapseStates[key] = isCollapsed;
+    localStorage.setItem('sectionCollapseStates', JSON.stringify(collapseStates));
+}
+
+// Get section collapse state from localStorage
+function getSectionCollapseState(templateId, arrayIndex) {
+    const collapseStates = JSON.parse(localStorage.getItem('sectionCollapseStates') || '{}');
+    const key = `${templateId}_${arrayIndex}`;
+    // Return true (collapsed) by default, false only if explicitly expanded
+    return collapseStates[key] !== false;
+}
+
+// Delete an entire section
+function deleteSection(templateId, arrayIndex) {
+    if (!confirm('Are you sure you want to delete this entire section and all its items?')) {
+        return;
+    }
+
+    // Get the template
+    const allTemplates = JSON.parse(localStorage.getItem('deficiencyTemplates') || '[]');
+    const templateIndex = allTemplates.findIndex(t => t.id === templateId);
+
+    if (templateIndex === -1) {
+        alert('Template not found.');
+        return;
+    }
+
+    const template = allTemplates[templateIndex];
+
+    // Remove the section at the specified index
+    if (template.items[arrayIndex]) {
+        template.items.splice(arrayIndex, 1);
+    }
+
+    // Save back to localStorage
+    localStorage.setItem('deficiencyTemplates', JSON.stringify(allTemplates));
+
+    // Reload the items list
+    loadTemplateItems(allTemplates[templateIndex], document.getElementById('template-items-container'));
+}
+
+// Delete a flat item (no section)
+function deleteFlatItem(templateId, flatItemIndex) {
+    // Get the template
+    const allTemplates = JSON.parse(localStorage.getItem('deficiencyTemplates') || '[]');
+    const templateIndex = allTemplates.findIndex(t => t.id === templateId);
+
+    if (templateIndex === -1) {
+        alert('Template not found.');
+        return;
+    }
+
+    const template = allTemplates[templateIndex];
+
+    // Find and remove the flat item
+    let flatItemCount = 0;
+    for (let i = 0; i < template.items.length; i++) {
+        if (!template.items[i].section) {
+            // This is a flat item
+            if (flatItemCount === flatItemIndex) {
+                template.items.splice(i, 1);
+                break;
+            }
+            flatItemCount++;
+        }
+    }
+
+    // Save back to localStorage
+    localStorage.setItem('deficiencyTemplates', JSON.stringify(allTemplates));
+
+    // Reload the items list
+    loadTemplateItems(allTemplates[templateIndex], document.getElementById('template-items-container'));
+}
+
+// Old function kept for compatibility - redirects to deleteSectionItem
+function deleteTemplateItem(templateId, sectionIndex, itemIndex) {
+    if (itemIndex !== undefined) {
+        deleteSectionItem(templateId, sectionIndex, itemIndex);
+    } else {
+        deleteFlatItem(templateId, sectionIndex);
+    }
 }
 
 // Use a template for a new inspection
@@ -1764,4 +2561,456 @@ function deleteTemplate(templateId) {
 
     // Reload the page to update the display
     location.reload();
+}
+
+// ==================== COMBINE TEMPLATES FUNCTIONS ====================
+
+// Load the combine templates page
+function loadCombineTemplatesPage() {
+    console.log('loadCombineTemplatesPage called');
+    
+    const templatesListContainer = document.getElementById('templates-list-container');
+    if (!templatesListContainer) {
+        console.error('templates-list-container not found');
+        return;
+    }
+
+    // Get all templates
+    const allTemplates = JSON.parse(localStorage.getItem('deficiencyTemplates') || '[]');
+    
+    console.log('Combine Templates Debug:', {
+        total: allTemplates.length,
+        templates: allTemplates
+    });
+
+    // Clear the container
+    templatesListContainer.innerHTML = '';
+
+    if (allTemplates.length === 0) {
+        templatesListContainer.innerHTML = '<p>No templates available. Create some templates first.</p>';
+        return;
+    }
+
+    // Create template selection list with headings and item lists
+    allTemplates.forEach((template, templateIndex) => {
+        const templateDiv = document.createElement('div');
+        templateDiv.className = 'template-select-section';
+
+        // Handle both flat items and grouped items (combined templates)
+        let itemsHtml = '';
+        if (template.items && template.items.length > 0) {
+            // Check if items are grouped (combined template)
+            if (template.items[0].section && template.items[0].items) {
+                // Grouped items - flatten for display
+                template.items.forEach(sectionGroup => {
+                    if (sectionGroup.items) {
+                        sectionGroup.items.forEach(item => {
+                            itemsHtml += `<li class="template-item-list-item">${item.name}</li>`;
+                        });
+                    }
+                });
+            } else {
+                // Flat items (regular template)
+                template.items.forEach(item => {
+                    itemsHtml += `<li class="template-item-list-item">${item.name}</li>`;
+                });
+            }
+        }
+
+        const itemCount = itemsHtml ? (itemsHtml.match(/<li/g) || []).length : 0;
+        const uniqueId = `combine-template-${templateIndex}`;
+
+        templateDiv.innerHTML = `
+            <div class="template-select-header">
+                <button class="collapse-toggle" data-collapse-id="${uniqueId}" title="Collapse/Expand">
+                    <i class="fas fa-chevron-right"></i>
+                </button>
+                <label class="template-select-label">
+                    <input type="checkbox" class="template-select" data-template-id="${template.id}" data-template-name="${template.title}">
+                    <span class="template-select-title">
+                        <strong>${template.title}</strong>
+                        <span class="item-count-badge">${itemCount} items</span>
+                    </span>
+                </label>
+            </div>
+            <div class="section-content collapsed" id="${uniqueId}">
+                ${itemsHtml ? `<ul class="template-items-list-display">${itemsHtml}</ul>` : '<p class="no-items-message">No items in this template</p>'}
+            </div>
+        `;
+
+        templatesListContainer.appendChild(templateDiv);
+    });
+
+    // Add change event listeners to checkboxes
+    document.querySelectorAll('.template-select').forEach(checkbox => {
+        checkbox.addEventListener('change', function() {
+            previewCombinedItems();
+        });
+    });
+
+    // Add click event to create combined button
+    const createCombinedBtn = document.getElementById('create-combined-btn');
+    if (createCombinedBtn) {
+        createCombinedBtn.addEventListener('click', function() {
+            createCombinedTemplate();
+        });
+    }
+
+    // Add event listeners to collapse toggle buttons
+    templatesListContainer.querySelectorAll('.collapse-toggle').forEach(button => {
+        button.addEventListener('click', function() {
+            const collapseId = this.getAttribute('data-collapse-id');
+            const sectionContent = document.getElementById(collapseId);
+            const icon = this.querySelector('i');
+            
+            if (sectionContent) {
+                sectionContent.classList.toggle('collapsed');
+                
+                if (sectionContent.classList.contains('collapsed')) {
+                    icon.classList.remove('fa-chevron-down');
+                    icon.classList.add('fa-chevron-right');
+                } else {
+                    icon.classList.remove('fa-chevron-right');
+                    icon.classList.add('fa-chevron-down');
+                }
+            }
+        });
+    });
+}
+
+// Preview combined items from selected templates
+function previewCombinedItems() {
+    const previewContainer = document.getElementById('combined-items-preview');
+    const totalCountSpan = document.getElementById('total-item-count');
+
+    if (!previewContainer || !totalCountSpan) return;
+
+    // Get selected templates
+    const selectedCheckboxes = document.querySelectorAll('.template-select:checked');
+
+    if (selectedCheckboxes.length === 0) {
+        previewContainer.innerHTML = '<p class="preview-info">Select templates above to preview combined items</p>';
+        totalCountSpan.textContent = '0';
+        return;
+    }
+
+    // Collect templates and their items
+    const allTemplates = JSON.parse(localStorage.getItem('deficiencyTemplates') || '[]');
+    let previewHtml = '';
+    let totalItemCount = 0;
+    let previewIndex = 0;
+
+    selectedCheckboxes.forEach(checkbox => {
+        const templateId = parseInt(checkbox.getAttribute('data-template-id'));
+        const templateName = checkbox.getAttribute('data-template-name');
+        const template = allTemplates.find(t => t.id === templateId);
+        const uniqueId = `preview-template-${previewIndex}`;
+
+        if (template && template.items) {
+            let itemsHtml = '';
+            let itemCount = 0;
+
+            // Handle both flat items and grouped items (combined templates)
+            if (template.items[0].section && template.items[0].items) {
+                // Grouped items - flatten for display
+                template.items.forEach(sectionGroup => {
+                    if (sectionGroup.items) {
+                        sectionGroup.items.forEach(item => {
+                            itemsHtml += `<li class="template-item-list-item">${item.name}</li>`;
+                            itemCount++;
+                        });
+                    }
+                });
+            } else {
+                // Flat items (regular template)
+                template.items.forEach(item => {
+                    itemsHtml += `<li class="template-item-list-item">${item.name}</li>`;
+                    itemCount++;
+                });
+            }
+
+            if (itemCount > 0) {
+                previewHtml += `
+                    <div class="template-select-section">
+                        <div class="template-select-header">
+                            <button class="collapse-toggle" data-collapse-id="${uniqueId}" title="Collapse/Expand">
+                                <i class="fas fa-chevron-right"></i>
+                            </button>
+                            <span class="template-select-title">
+                                <strong>${templateName}</strong>
+                                <span class="item-count-badge">${itemCount} items</span>
+                            </span>
+                        </div>
+                        <div class="section-content collapsed" id="${uniqueId}">
+                            <ul class="template-items-list-display">${itemsHtml}</ul>
+                        </div>
+                    </div>
+                `;
+                totalItemCount += itemCount;
+                previewIndex++;
+            }
+        }
+    });
+
+    // Display preview
+    if (previewHtml === '') {
+        previewContainer.innerHTML = '<p class="preview-info">Selected templates have no items</p>';
+        totalCountSpan.textContent = '0';
+        return;
+    }
+
+    previewContainer.innerHTML = previewHtml;
+    totalCountSpan.textContent = totalItemCount;
+
+    // Add event listeners to collapse toggle buttons in preview
+    previewContainer.querySelectorAll('.collapse-toggle').forEach(button => {
+        button.addEventListener('click', function() {
+            const collapseId = this.getAttribute('data-collapse-id');
+            const sectionContent = document.getElementById(collapseId);
+            const icon = this.querySelector('i');
+            
+            if (sectionContent) {
+                sectionContent.classList.toggle('collapsed');
+                
+                if (sectionContent.classList.contains('collapsed')) {
+                    icon.classList.remove('fa-chevron-down');
+                    icon.classList.add('fa-chevron-right');
+                } else {
+                    icon.classList.remove('fa-chevron-right');
+                    icon.classList.add('fa-chevron-down');
+                }
+            }
+        });
+    });
+}
+
+// Create combined template
+function createCombinedTemplate() {
+    const templateNameInput = document.getElementById('combined-template-name');
+    const newName = templateNameInput ? templateNameInput.value.trim() : '';
+
+    if (!newName) {
+        alert('Please enter a name for the combined template.');
+        return;
+    }
+
+    // Get selected templates
+    const selectedCheckboxes = document.querySelectorAll('.template-select:checked');
+
+    if (selectedCheckboxes.length === 0) {
+        alert('Please select at least one template to combine.');
+        return;
+    }
+
+    // Collect items grouped by source template
+    const groupedItems = [];
+    const allTemplates = JSON.parse(localStorage.getItem('deficiencyTemplates') || '[]');
+    const seenItems = new Set(); // To avoid duplicates across all templates
+
+    selectedCheckboxes.forEach(checkbox => {
+        const templateId = parseInt(checkbox.getAttribute('data-template-id'));
+        const templateName = checkbox.getAttribute('data-template-name');
+        const template = allTemplates.find(t => t.id === templateId);
+
+        if (template && template.items) {
+            const sectionItems = [];
+
+            // Handle both flat items and grouped items (combined templates)
+            if (template.items[0] && template.items[0].section && template.items[0].items) {
+                // This is a combined template with grouped items - flatten them
+                template.items.forEach(sectionGroup => {
+                    if (sectionGroup.items) {
+                        sectionGroup.items.forEach(item => {
+                            if (item.name) {
+                                const itemKey = item.name.toLowerCase();
+                                if (!seenItems.has(itemKey)) {
+                                    seenItems.add(itemKey);
+                                    sectionItems.push({
+                                        id: Date.now() + Math.random(),
+                                        name: item.name,
+                                        description: item.description || ''
+                                    });
+                                }
+                            }
+                        });
+                    }
+                });
+            } else {
+                // Regular template with flat items
+                template.items.forEach(item => {
+                    if (item && item.name) {
+                        const itemKey = item.name.toLowerCase();
+                        if (!seenItems.has(itemKey)) {
+                            seenItems.add(itemKey);
+                            sectionItems.push({
+                                id: Date.now() + Math.random(),
+                                name: item.name,
+                                description: item.description || ''
+                            });
+                        }
+                    }
+                });
+            }
+
+            // Only add section if it has items
+            if (sectionItems.length > 0) {
+                groupedItems.push({
+                    section: templateName,
+                    items: sectionItems
+                });
+            }
+        }
+    });
+
+    if (groupedItems.length === 0) {
+        alert('Selected templates have no items to combine.');
+        return;
+    }
+
+    // Create new combined template with grouped items
+    const newTemplate = {
+        id: Date.now(),
+        title: newName,
+        items: groupedItems, // Store as grouped sections
+        createdAt: new Date().toLocaleDateString(),
+        combinedFrom: Array.from(selectedCheckboxes).map(cb => cb.getAttribute('data-template-name')),
+        isCombined: true
+    };
+
+    // Save to localStorage
+    allTemplates.push(newTemplate);
+    localStorage.setItem('deficiencyTemplates', JSON.stringify(allTemplates));
+
+    // Show success and redirect
+    alert(`Combined template "${newName}" created with ${groupedItems.length} sections!`);
+    window.location.href = 'templates.html';
+}
+
+// Helper function to create an inspection item element
+function createInspectionItem(item, savedResults, storedDescriptions, container) {
+    const itemElement = document.createElement('div');
+    itemElement.className = 'inspection-item';
+    itemElement.setAttribute('data-id', item.id);
+
+    // Get saved status for this item, default to 'pending'
+    const savedStatus = savedResults[item.id] || 'pending';
+
+    itemElement.innerHTML = `
+        <div class="item-info">
+            <div class="item-name">${item.name}</div>
+            <div class="item-description">${item.description}</div>
+        </div>
+        <div class="button-group">
+            <button class="btn-pass ${savedStatus === 'pass' ? 'active' : ''}" data-id="${item.id}">PASS</button>
+            <button class="btn-fail ${savedStatus === 'fail' ? 'active' : ''}" data-id="${item.id}">FAIL</button>
+            ${savedStatus !== 'pending' ? `<span class="status-label ${savedStatus === 'pass' ? 'status-pass' : 'status-fail'}">${savedStatus === 'pass' ? 'PASSED' : 'FAILED'}</span>` : ''}
+        </div>
+    `;
+
+    container.appendChild(itemElement);
+
+    // Add event listeners directly to the buttons for this item
+    const passBtn = itemElement.querySelector('.btn-pass');
+    const failBtn = itemElement.querySelector('.btn-fail');
+    
+    if (passBtn) {
+        passBtn.addEventListener('click', handlePassClick);
+    }
+    
+    if (failBtn) {
+        failBtn.addEventListener('click', handleFailClick);
+    }
+
+    // If the item is marked as failed and has stored descriptions, show them
+    if (savedStatus === 'fail' && storedDescriptions[item.id] && storedDescriptions[item.id].length > 0) {
+        const deficiencyDisplay = document.createElement('div');
+        deficiencyDisplay.id = `deficiency-display-${item.id}`;
+        deficiencyDisplay.className = 'deficiency-display';
+
+        const displayHeader = document.createElement('div');
+        displayHeader.className = 'deficiency-display-header';
+        displayHeader.innerHTML = `
+            <h4>Added Deficiencies</h4>
+            <div class="deficiency-header-actions">
+                <button type="button" class="btn-delete-deficiency-section" data-item-id="${item.id}" title="Delete all deficiencies for this item">
+                    <i class="fas fa-trash"></i> Delete Section
+                </button>
+                <button type="button" class="toggle-button" data-target="deficiency-display-content-${item.id}">
+                    <span class="toggle-icon">▼</span>
+                </button>
+            </div>
+        `;
+
+        deficiencyDisplay.appendChild(displayHeader);
+
+        const displayContent = document.createElement('div');
+        displayContent.id = `deficiency-display-content-${item.id}`;
+        displayContent.className = 'deficiency-display-content';
+
+        storedDescriptions[item.id].forEach((desc, descIndex) => {
+            const descParagraph = document.createElement('p');
+            descParagraph.textContent = desc;
+            descParagraph.className = 'deficiency-text';
+            
+            // Create delete button for individual deficiency
+            const deleteBtn = document.createElement('button');
+            deleteBtn.className = 'btn-delete-deficiency-item';
+            deleteBtn.textContent = '×';
+            deleteBtn.title = 'Delete this deficiency';
+            deleteBtn.dataset.descIndex = descIndex;
+            deleteBtn.dataset.itemId = item.id;
+            deleteBtn.style.color = '#e74c3c';
+            deleteBtn.style.background = 'none';
+            deleteBtn.style.border = 'none';
+            deleteBtn.style.cursor = 'pointer';
+            deleteBtn.style.fontSize = '20px';
+            deleteBtn.style.padding = '4px 8px';
+            deleteBtn.style.lineHeight = '1';
+            deleteBtn.style.fontWeight = 'bold';
+            
+            // Create container
+            const descContainer = document.createElement('div');
+            descContainer.className = 'deficiency-item-row';
+            descContainer.style.display = 'flex';
+            descContainer.style.alignItems = 'center';
+            descContainer.style.gap = '10px';
+            descContainer.appendChild(descParagraph);
+            descContainer.appendChild(deleteBtn);
+            
+            displayContent.appendChild(descContainer);
+            
+            // Add delete button event listener
+            deleteBtn.addEventListener('click', function() {
+                const clickedDescIndex = parseInt(this.dataset.descIndex);
+                const clickedItemId = this.dataset.itemId;
+                deleteIndividualDeficiencyActiveInspection(clickedItemId, clickedDescIndex, descContainer, deficiencyDisplay, displayContent);
+            });
+        });
+
+        deficiencyDisplay.appendChild(displayContent);
+        itemElement.appendChild(deficiencyDisplay);
+
+        const displayToggle = displayHeader.querySelector('.toggle-button');
+        displayToggle.addEventListener('click', function() {
+            const targetId = this.getAttribute('data-target');
+            const targetElement = document.getElementById(targetId);
+
+            if (targetElement.style.display === 'none') {
+                targetElement.style.display = 'block';
+                this.querySelector('.toggle-icon').textContent = '▼';
+            } else {
+                targetElement.style.display = 'none';
+                this.querySelector('.toggle-icon').textContent = '▶';
+            }
+        });
+        
+        // Add delete section button event listener
+        const deleteSectionBtn = displayHeader.querySelector('.btn-delete-deficiency-section');
+        if (deleteSectionBtn) {
+            deleteSectionBtn.addEventListener('click', function() {
+                const clickedItemId = this.dataset.itemId;
+                deleteDeficiencySectionActiveInspection(clickedItemId, deficiencyDisplay, null);
+            });
+        }
+    }
 }

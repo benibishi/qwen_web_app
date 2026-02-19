@@ -61,6 +61,13 @@
                     <label for="framing-contractor">Framing Contractor:</label>
                     <input type="text" id="framing-contractor" name="framing-contractor" required>
                 </div>
+                <div class="form-group">
+                    <label for="template-select">Select Template:</label>
+                    <select id="template-select" name="template-select" required>
+                        <option value="">-- Select a Template --</option>
+                        <!-- Templates will be dynamically loaded here -->
+                    </select>
+                </div>
                 <div class="form-actions">
                     <button type="submit" class="btn-primary">Submit</button>
                     <button type="button" id="cancel-modal" class="btn-secondary">Cancel</button>
