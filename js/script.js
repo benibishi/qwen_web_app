@@ -561,11 +561,26 @@ function loadDeficienciesPage() {
     // Get saved results and find failed items
     const savedResults = getSavedResults();
     const storedDescriptions = getStoredDeficiencyDescriptions();
-    
+
     // Get items from template or use empty array
     const templateData = JSON.parse(localStorage.getItem('templateItemsForInspection') || '{}');
-    const templateItems = templateData.items || [];
-    const failedItems = templateItems.filter(item => savedResults[item.id] === 'fail');
+    let templateItems = templateData.items || [];
+    
+    // Handle combined templates (items grouped by sections)
+    let allItems = [];
+    if (templateItems.length > 0 && templateItems[0].section && templateItems[0].items) {
+        // Combined template - flatten the grouped items
+        templateItems.forEach(sectionGroup => {
+            if (sectionGroup.items) {
+                allItems = allItems.concat(sectionGroup.items);
+            }
+        });
+    } else {
+        // Regular template - items are flat
+        allItems = templateItems;
+    }
+    
+    const failedItems = allItems.filter(item => savedResults[item.id] === 'fail');
 
     if (failedItems.length === 0) {
         deficienciesContainer.innerHTML = '<p>No deficiencies found. All items have passed inspection.</p>';
@@ -1399,6 +1414,13 @@ function loadTemplatesPage() {
     // Get saved templates
     const allTemplates = JSON.parse(localStorage.getItem('deficiencyTemplates') || '[]');
 
+    console.log('Templates Debug:', {
+        total: allTemplates.length,
+        combined: allTemplates.filter(t => t.isCombined === true).length,
+        regular: allTemplates.filter(t => t.isCombined !== true).length,
+        allTemplates: allTemplates
+    });
+
     // Clear the container
     templateCardsContainer.innerHTML = '';
 
@@ -1572,12 +1594,82 @@ function loadTemplateEditor() {
     // Load template items
     loadTemplateItems(template, templateItemsContainer);
 
-    // Add event listener for add item button
-    const addItemBtn = document.getElementById('add-item-btn');
-    if (addItemBtn) {
-        addItemBtn.addEventListener('click', function() {
-            addTemplateItem(templateId);
+    // Add event listener for add section button
+    const addSectionBtn = document.getElementById('add-section-btn');
+    if (addSectionBtn) {
+        addSectionBtn.addEventListener('click', function() {
+            addSectionToTemplate(templateId);
         });
+    }
+
+    // Add event listener for add flat item button
+    const addItemFlatBtn = document.getElementById('add-item-flat-btn');
+    if (addItemFlatBtn) {
+        addItemFlatBtn.addEventListener('click', function() {
+            addItemFlatToTemplate(templateId);
+        });
+    }
+
+    // Add Enter key support for section name input
+    const sectionNameInput = document.getElementById('section-name');
+    if (sectionNameInput) {
+        sectionNameInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                addSectionToTemplate(templateId);
+            }
+        });
+    }
+
+    // Add Enter key support for item name input in section mode
+    const itemNameInput = document.getElementById('item-name');
+    if (itemNameInput) {
+        itemNameInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                addSectionToTemplate(templateId);
+            }
+        });
+    }
+
+    // Add Enter key support for flat item name input
+    const itemNameFlatInput = document.getElementById('item-name-flat');
+    if (itemNameFlatInput) {
+        itemNameFlatInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                addItemFlatToTemplate(templateId);
+            }
+        });
+    }
+
+    // Toggle between section mode and item mode forms based on radio selection
+    const addTypeRadios = document.querySelectorAll('input[name="add-type"]');
+    const sectionModeForm = document.getElementById('section-mode-form');
+    const itemModeForm = document.getElementById('item-mode-form');
+
+    addTypeRadios.forEach(radio => {
+        radio.addEventListener('change', function() {
+            if (this.value === 'section') {
+                sectionModeForm.style.display = 'block';
+                itemModeForm.style.display = 'none';
+            } else {
+                sectionModeForm.style.display = 'none';
+                itemModeForm.style.display = 'block';
+            }
+        });
+    });
+
+    // Initialize form visibility
+    const checkedRadio = document.querySelector('input[name="add-type"]:checked');
+    if (checkedRadio) {
+        if (checkedRadio.value === 'section') {
+            sectionModeForm.style.display = 'block';
+            itemModeForm.style.display = 'none';
+        } else {
+            sectionModeForm.style.display = 'none';
+            itemModeForm.style.display = 'block';
+        }
     }
 
     // Add event listener for post button
@@ -1592,6 +1684,7 @@ function loadTemplateEditor() {
 
 // Load and display template items
 function loadTemplateItems(template, container) {
+    const templateId = template.id;
     container.innerHTML = '';
 
     if (!template.items || template.items.length === 0) {
@@ -1599,33 +1692,243 @@ function loadTemplateItems(template, container) {
         return;
     }
 
-    template.items.forEach((item, index) => {
-        const itemElement = document.createElement('div');
-        itemElement.className = 'template-item';
+    // Display items - sections first, then flat items
+    let flatItemIndex = 0;
 
-        itemElement.innerHTML = `
-            <div class="template-item-info">
-                <div class="template-item-name">${item.name}</div>
-            </div>
-            <button class="btn-delete-template" data-item-index="${index}">Delete</button>
-        `;
+    template.items.forEach((itemGroup, arrayIndex) => {
+        // Check if this is a section (has section property) or a flat item
+        if (itemGroup.section && itemGroup.items) {
+            // This is a section with items - use the actual array index
+            const sectionDiv = document.createElement('div');
+            sectionDiv.className = 'template-select-section';
 
-        container.appendChild(itemElement);
+            let itemsHtml = '';
+            let sectionItems = itemGroup.items || [];
+
+            sectionItems.forEach((item, itemIndex) => {
+                itemsHtml += `
+                    <li class="template-item-list-item">
+                        <span class="item-name-text">${item.name}</span>
+                        <button class="btn-delete-template-item" data-array-index="${arrayIndex}" data-item-index="${itemIndex}" title="Delete item">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </li>
+                `;
+            });
+
+            sectionDiv.innerHTML = `
+                <div class="template-select-header">
+                    <button class="collapse-toggle" data-array-index="${arrayIndex}" title="Collapse/Expand section">
+                        <i class="fas fa-chevron-down"></i>
+                    </button>
+                    <span class="template-select-title">
+                        <strong>${itemGroup.section}</strong>
+                        <span class="item-count-badge">${sectionItems.length} items</span>
+                    </span>
+                    <button class="btn-delete-section" data-array-index="${arrayIndex}" title="Delete entire section">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+                <div class="section-content" id="section-content-${arrayIndex}">
+                    <ul class="template-items-list-display">${itemsHtml}</ul>
+                    <div class="section-add-item-form" data-array-index="${arrayIndex}">
+                        <div class="form-group section-item-input-group">
+                            <label for="item-name-section-${arrayIndex}">Item Name:</label>
+                            <input type="text" id="item-name-section-${arrayIndex}" placeholder="e.g., Wall Plate Alignment">
+                        </div>
+                        <div class="form-actions">
+                            <button class="btn-add-item-to-section btn-secondary" data-array-index="${arrayIndex}">Add Item</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            container.appendChild(sectionDiv);
+
+            // Restore collapse state (sections that were expanded stay expanded)
+            const sectionContent = document.getElementById(`section-content-${arrayIndex}`);
+            const collapseBtn = container.querySelector(`.collapse-toggle[data-array-index="${arrayIndex}"]`);
+            
+            if (sectionContent && collapseBtn) {
+                // Check if this section was previously collapsed
+                const wasCollapsed = getSectionCollapseState(templateId, arrayIndex);
+                
+                if (wasCollapsed) {
+                    sectionContent.classList.add('collapsed');
+                    const icon = collapseBtn.querySelector('i');
+                    icon.classList.remove('fa-chevron-down');
+                    icon.classList.add('fa-chevron-right');
+                } else {
+                    // Section should be expanded by default
+                    sectionContent.classList.remove('collapsed');
+                    const icon = collapseBtn.querySelector('i');
+                    icon.classList.remove('fa-chevron-right');
+                    icon.classList.add('fa-chevron-down');
+                }
+            }
+        } else if (itemGroup.name) {
+            // This is a flat item (no section)
+            const itemElement = document.createElement('div');
+            itemElement.className = 'template-item flat-item';
+
+            itemElement.innerHTML = `
+                <div class="template-item-info">
+                    <div class="template-item-name">${itemGroup.name}</div>
+                </div>
+                <button class="btn-delete-flat-item" data-flat-item-index="${flatItemIndex}" title="Delete item">
+                    <i class="fas fa-trash"></i>
+                </button>
+            `;
+
+            container.appendChild(itemElement);
+            flatItemIndex++;
+        }
     });
 
-    // Add event listeners to delete buttons
-    container.querySelectorAll('.btn-delete-template').forEach(button => {
+    // Add event listeners to delete buttons for sections
+    container.querySelectorAll('.btn-delete-template-item').forEach(button => {
         button.addEventListener('click', function() {
+            const arrayIndex = parseInt(this.getAttribute('data-array-index'));
             const itemIndex = parseInt(this.getAttribute('data-item-index'));
-            deleteTemplateItem(template.id, itemIndex);
+            deleteSectionItem(templateId, arrayIndex, itemIndex);
+        });
+    });
+
+    // Add event listeners to delete buttons for flat items
+    container.querySelectorAll('.btn-delete-flat-item').forEach(button => {
+        button.addEventListener('click', function() {
+            const flatItemIndex = parseInt(this.getAttribute('data-flat-item-index'));
+            deleteFlatItem(templateId, flatItemIndex);
+        });
+    });
+
+    // Add event listeners to "Add Item to Section" buttons
+    container.querySelectorAll('.btn-add-item-to-section').forEach(button => {
+        button.addEventListener('click', function() {
+            const arrayIndex = parseInt(this.getAttribute('data-array-index'));
+            const inputField = document.getElementById(`item-name-section-${arrayIndex}`);
+            const itemName = inputField.value.trim();
+
+            if (!itemName) {
+                alert('Please enter an item name.');
+                return;
+            }
+
+            addItemToSection(templateId, arrayIndex, itemName);
+            inputField.value = '';
+        });
+    });
+
+    // Add Enter key support for "Add Item to Section" input fields
+    container.querySelectorAll('.section-item-input-group input').forEach(inputField => {
+        inputField.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                const arrayIndex = this.closest('.section-add-item-form').getAttribute('data-array-index');
+                const itemName = this.value.trim();
+
+                if (!itemName) {
+                    alert('Please enter an item name.');
+                    return;
+                }
+
+                addItemToSection(templateId, arrayIndex, itemName);
+                this.value = '';
+            }
+        });
+    });
+
+    // Add event listeners to delete section buttons
+    container.querySelectorAll('.btn-delete-section').forEach(button => {
+        button.addEventListener('click', function() {
+            const arrayIndex = parseInt(this.getAttribute('data-array-index'));
+            deleteSection(templateId, arrayIndex);
+        });
+    });
+
+    // Add event listeners to collapse toggle buttons
+    container.querySelectorAll('.collapse-toggle').forEach(button => {
+        button.addEventListener('click', function() {
+            const arrayIndex = parseInt(this.getAttribute('data-array-index'));
+            toggleSectionCollapse(templateId, arrayIndex);
         });
     });
 }
 
-// Add an item to the template
-function addTemplateItem(templateId) {
-    const itemNameInput = document.getElementById('item-name');
+// Add a section (empty, items will be added separately) to the template
+function addSectionToTemplate(templateId) {
+    const sectionNameInput = document.getElementById('section-name');
+    const sectionName = sectionNameInput ? sectionNameInput.value.trim() : '';
 
+    if (!sectionName) {
+        alert('Please enter a section name.');
+        return;
+    }
+
+    // Get the template
+    const allTemplates = JSON.parse(localStorage.getItem('deficiencyTemplates') || '[]');
+    const templateIndex = allTemplates.findIndex(t => t.id === templateId);
+
+    if (templateIndex === -1) {
+        alert('Template not found.');
+        return;
+    }
+
+    const template = allTemplates[templateIndex];
+
+    // Initialize items array if not exists
+    if (!template.items) {
+        template.items = [];
+    }
+
+    // Add a new empty section (items will be added via the form under the section)
+    template.items.push({
+        section: sectionName,
+        items: []
+    });
+
+    // Save back to localStorage
+    localStorage.setItem('deficiencyTemplates', JSON.stringify(allTemplates));
+
+    // Clear input
+    sectionNameInput.value = '';
+
+    // Reload the items list
+    loadTemplateItems(allTemplates[templateIndex], document.getElementById('template-items-container'));
+}
+
+// Add an item to a specific section
+function addItemToSection(templateId, arrayIndex, itemName) {
+    // Get the template
+    const allTemplates = JSON.parse(localStorage.getItem('deficiencyTemplates') || '[]');
+    const templateIndex = allTemplates.findIndex(t => t.id === templateId);
+
+    if (templateIndex === -1) {
+        alert('Template not found.');
+        return;
+    }
+
+    const template = allTemplates[templateIndex];
+
+    // Add item to the specified section
+    if (template.items[arrayIndex] && template.items[arrayIndex].items) {
+        template.items[arrayIndex].items.push({
+            id: Date.now(),
+            name: itemName,
+            description: ''
+        });
+    }
+
+    // Save back to localStorage
+    localStorage.setItem('deficiencyTemplates', JSON.stringify(allTemplates));
+
+    // Reload the items list
+    loadTemplateItems(allTemplates[templateIndex], document.getElementById('template-items-container'));
+}
+
+// Add a flat item (no section) to the template
+function addItemFlatToTemplate(templateId) {
+    const itemNameInput = document.getElementById('item-name-flat');
     const itemName = itemNameInput.value.trim();
 
     if (!itemName) {
@@ -1642,13 +1945,15 @@ function addTemplateItem(templateId) {
         return;
     }
 
+    const template = allTemplates[templateIndex];
+
     // Initialize items array if not exists
-    if (!allTemplates[templateIndex].items) {
-        allTemplates[templateIndex].items = [];
+    if (!template.items) {
+        template.items = [];
     }
 
-    // Add the new item
-    allTemplates[templateIndex].items.push({
+    // Add a flat item (no section)
+    template.items.push({
         id: Date.now(),
         name: itemName,
         description: ''
@@ -1664,8 +1969,8 @@ function addTemplateItem(templateId) {
     loadTemplateItems(allTemplates[templateIndex], document.getElementById('template-items-container'));
 }
 
-// Delete an item from the template
-function deleteTemplateItem(templateId, itemIndex) {
+// Delete an item from a section
+function deleteSectionItem(templateId, arrayIndex, itemIndex) {
     // Get the template
     const allTemplates = JSON.parse(localStorage.getItem('deficiencyTemplates') || '[]');
     const templateIndex = allTemplates.findIndex(t => t.id === templateId);
@@ -1675,14 +1980,134 @@ function deleteTemplateItem(templateId, itemIndex) {
         return;
     }
 
-    // Remove the item
-    allTemplates[templateIndex].items.splice(itemIndex, 1);
+    const template = allTemplates[templateIndex];
+
+    // Delete item from section
+    if (template.items[arrayIndex] && template.items[arrayIndex].items) {
+        template.items[arrayIndex].items.splice(itemIndex, 1);
+
+        // Remove empty sections
+        if (template.items[arrayIndex].items.length === 0) {
+            template.items.splice(arrayIndex, 1);
+        }
+    }
 
     // Save back to localStorage
     localStorage.setItem('deficiencyTemplates', JSON.stringify(allTemplates));
 
     // Reload the items list
     loadTemplateItems(allTemplates[templateIndex], document.getElementById('template-items-container'));
+}
+
+// Toggle section collapse/expand
+function toggleSectionCollapse(templateId, arrayIndex) {
+    const sectionContent = document.getElementById(`section-content-${arrayIndex}`);
+    const collapseBtn = document.querySelector(`.collapse-toggle[data-array-index="${arrayIndex}"]`);
+    
+    if (!sectionContent || !collapseBtn) return;
+    
+    // Toggle collapsed state
+    sectionContent.classList.toggle('collapsed');
+    
+    // Update icon
+    const icon = collapseBtn.querySelector('i');
+    if (sectionContent.classList.contains('collapsed')) {
+        icon.classList.remove('fa-chevron-down');
+        icon.classList.add('fa-chevron-right');
+    } else {
+        icon.classList.remove('fa-chevron-right');
+        icon.classList.add('fa-chevron-down');
+    }
+    
+    // Save collapse state to localStorage
+    saveSectionCollapseState(templateId, arrayIndex, sectionContent.classList.contains('collapsed'));
+}
+
+// Save section collapse state to localStorage
+function saveSectionCollapseState(templateId, arrayIndex, isCollapsed) {
+    const collapseStates = JSON.parse(localStorage.getItem('sectionCollapseStates') || '{}');
+    const key = `${templateId}_${arrayIndex}`;
+    collapseStates[key] = isCollapsed;
+    localStorage.setItem('sectionCollapseStates', JSON.stringify(collapseStates));
+}
+
+// Get section collapse state from localStorage
+function getSectionCollapseState(templateId, arrayIndex) {
+    const collapseStates = JSON.parse(localStorage.getItem('sectionCollapseStates') || '{}');
+    const key = `${templateId}_${arrayIndex}`;
+    // Return true (collapsed) by default, false only if explicitly expanded
+    return collapseStates[key] !== false;
+}
+
+// Delete an entire section
+function deleteSection(templateId, arrayIndex) {
+    if (!confirm('Are you sure you want to delete this entire section and all its items?')) {
+        return;
+    }
+
+    // Get the template
+    const allTemplates = JSON.parse(localStorage.getItem('deficiencyTemplates') || '[]');
+    const templateIndex = allTemplates.findIndex(t => t.id === templateId);
+
+    if (templateIndex === -1) {
+        alert('Template not found.');
+        return;
+    }
+
+    const template = allTemplates[templateIndex];
+
+    // Remove the section at the specified index
+    if (template.items[arrayIndex]) {
+        template.items.splice(arrayIndex, 1);
+    }
+
+    // Save back to localStorage
+    localStorage.setItem('deficiencyTemplates', JSON.stringify(allTemplates));
+
+    // Reload the items list
+    loadTemplateItems(allTemplates[templateIndex], document.getElementById('template-items-container'));
+}
+
+// Delete a flat item (no section)
+function deleteFlatItem(templateId, flatItemIndex) {
+    // Get the template
+    const allTemplates = JSON.parse(localStorage.getItem('deficiencyTemplates') || '[]');
+    const templateIndex = allTemplates.findIndex(t => t.id === templateId);
+
+    if (templateIndex === -1) {
+        alert('Template not found.');
+        return;
+    }
+
+    const template = allTemplates[templateIndex];
+
+    // Find and remove the flat item
+    let flatItemCount = 0;
+    for (let i = 0; i < template.items.length; i++) {
+        if (!template.items[i].section) {
+            // This is a flat item
+            if (flatItemCount === flatItemIndex) {
+                template.items.splice(i, 1);
+                break;
+            }
+            flatItemCount++;
+        }
+    }
+
+    // Save back to localStorage
+    localStorage.setItem('deficiencyTemplates', JSON.stringify(allTemplates));
+
+    // Reload the items list
+    loadTemplateItems(allTemplates[templateIndex], document.getElementById('template-items-container'));
+}
+
+// Old function kept for compatibility - redirects to deleteSectionItem
+function deleteTemplateItem(templateId, sectionIndex, itemIndex) {
+    if (itemIndex !== undefined) {
+        deleteSectionItem(templateId, sectionIndex, itemIndex);
+    } else {
+        deleteFlatItem(templateId, sectionIndex);
+    }
 }
 
 // Use a template for a new inspection
@@ -1744,11 +2169,21 @@ function deleteTemplate(templateId) {
 
 // Load the combine templates page
 function loadCombineTemplatesPage() {
+    console.log('loadCombineTemplatesPage called');
+    
     const templatesListContainer = document.getElementById('templates-list-container');
-    if (!templatesListContainer) return;
+    if (!templatesListContainer) {
+        console.error('templates-list-container not found');
+        return;
+    }
 
     // Get all templates
     const allTemplates = JSON.parse(localStorage.getItem('deficiencyTemplates') || '[]');
+    
+    console.log('Combine Templates Debug:', {
+        total: allTemplates.length,
+        templates: allTemplates
+    });
 
     // Clear the container
     templatesListContainer.innerHTML = '';
@@ -1758,23 +2193,54 @@ function loadCombineTemplatesPage() {
         return;
     }
 
-    // Create template selection list
-    allTemplates.forEach(template => {
-        const itemCount = template.items ? template.items.length : 0;
-        
-        const templateCheck = document.createElement('div');
-        templateCheck.className = 'template-check-item';
-        templateCheck.innerHTML = `
-            <label class="template-check-label">
-                <input type="checkbox" class="template-select" data-template-id="${template.id}" data-template-name="${template.title}">
-                <span class="template-check-text">
-                    <strong>${template.title}</strong>
-                    <span class="item-count-badge">${itemCount} items</span>
-                </span>
-            </label>
+    // Create template selection list with headings and item lists
+    allTemplates.forEach((template, templateIndex) => {
+        const templateDiv = document.createElement('div');
+        templateDiv.className = 'template-select-section';
+
+        // Handle both flat items and grouped items (combined templates)
+        let itemsHtml = '';
+        if (template.items && template.items.length > 0) {
+            // Check if items are grouped (combined template)
+            if (template.items[0].section && template.items[0].items) {
+                // Grouped items - flatten for display
+                template.items.forEach(sectionGroup => {
+                    if (sectionGroup.items) {
+                        sectionGroup.items.forEach(item => {
+                            itemsHtml += `<li class="template-item-list-item">${item.name}</li>`;
+                        });
+                    }
+                });
+            } else {
+                // Flat items (regular template)
+                template.items.forEach(item => {
+                    itemsHtml += `<li class="template-item-list-item">${item.name}</li>`;
+                });
+            }
+        }
+
+        const itemCount = itemsHtml ? (itemsHtml.match(/<li/g) || []).length : 0;
+        const uniqueId = `combine-template-${templateIndex}`;
+
+        templateDiv.innerHTML = `
+            <div class="template-select-header">
+                <button class="collapse-toggle" data-collapse-id="${uniqueId}" title="Collapse/Expand">
+                    <i class="fas fa-chevron-right"></i>
+                </button>
+                <label class="template-select-label">
+                    <input type="checkbox" class="template-select" data-template-id="${template.id}" data-template-name="${template.title}">
+                    <span class="template-select-title">
+                        <strong>${template.title}</strong>
+                        <span class="item-count-badge">${itemCount} items</span>
+                    </span>
+                </label>
+            </div>
+            <div class="section-content collapsed" id="${uniqueId}">
+                ${itemsHtml ? `<ul class="template-items-list-display">${itemsHtml}</ul>` : '<p class="no-items-message">No items in this template</p>'}
+            </div>
         `;
-        
-        templatesListContainer.appendChild(templateCheck);
+
+        templatesListContainer.appendChild(templateDiv);
     });
 
     // Add change event listeners to checkboxes
@@ -1791,63 +2257,133 @@ function loadCombineTemplatesPage() {
             createCombinedTemplate();
         });
     }
+
+    // Add event listeners to collapse toggle buttons
+    templatesListContainer.querySelectorAll('.collapse-toggle').forEach(button => {
+        button.addEventListener('click', function() {
+            const collapseId = this.getAttribute('data-collapse-id');
+            const sectionContent = document.getElementById(collapseId);
+            const icon = this.querySelector('i');
+            
+            if (sectionContent) {
+                sectionContent.classList.toggle('collapsed');
+                
+                if (sectionContent.classList.contains('collapsed')) {
+                    icon.classList.remove('fa-chevron-down');
+                    icon.classList.add('fa-chevron-right');
+                } else {
+                    icon.classList.remove('fa-chevron-right');
+                    icon.classList.add('fa-chevron-down');
+                }
+            }
+        });
+    });
 }
 
 // Preview combined items from selected templates
 function previewCombinedItems() {
     const previewContainer = document.getElementById('combined-items-preview');
     const totalCountSpan = document.getElementById('total-item-count');
-    
+
     if (!previewContainer || !totalCountSpan) return;
 
     // Get selected templates
     const selectedCheckboxes = document.querySelectorAll('.template-select:checked');
-    
+
     if (selectedCheckboxes.length === 0) {
         previewContainer.innerHTML = '<p class="preview-info">Select templates above to preview combined items</p>';
         totalCountSpan.textContent = '0';
         return;
     }
 
-    // Collect all items from selected templates
-    const allItems = [];
+    // Collect templates and their items
     const allTemplates = JSON.parse(localStorage.getItem('deficiencyTemplates') || '[]');
+    let previewHtml = '';
+    let totalItemCount = 0;
+    let previewIndex = 0;
 
     selectedCheckboxes.forEach(checkbox => {
         const templateId = parseInt(checkbox.getAttribute('data-template-id'));
+        const templateName = checkbox.getAttribute('data-template-name');
         const template = allTemplates.find(t => t.id === templateId);
-        
+        const uniqueId = `preview-template-${previewIndex}`;
+
         if (template && template.items) {
-            template.items.forEach(item => {
-                allItems.push({
-                    ...item,
-                    sourceTemplate: template.title
+            let itemsHtml = '';
+            let itemCount = 0;
+
+            // Handle both flat items and grouped items (combined templates)
+            if (template.items[0].section && template.items[0].items) {
+                // Grouped items - flatten for display
+                template.items.forEach(sectionGroup => {
+                    if (sectionGroup.items) {
+                        sectionGroup.items.forEach(item => {
+                            itemsHtml += `<li class="template-item-list-item">${item.name}</li>`;
+                            itemCount++;
+                        });
+                    }
                 });
-            });
+            } else {
+                // Flat items (regular template)
+                template.items.forEach(item => {
+                    itemsHtml += `<li class="template-item-list-item">${item.name}</li>`;
+                    itemCount++;
+                });
+            }
+
+            if (itemCount > 0) {
+                previewHtml += `
+                    <div class="template-select-section">
+                        <div class="template-select-header">
+                            <button class="collapse-toggle" data-collapse-id="${uniqueId}" title="Collapse/Expand">
+                                <i class="fas fa-chevron-right"></i>
+                            </button>
+                            <span class="template-select-title">
+                                <strong>${templateName}</strong>
+                                <span class="item-count-badge">${itemCount} items</span>
+                            </span>
+                        </div>
+                        <div class="section-content collapsed" id="${uniqueId}">
+                            <ul class="template-items-list-display">${itemsHtml}</ul>
+                        </div>
+                    </div>
+                `;
+                totalItemCount += itemCount;
+                previewIndex++;
+            }
         }
     });
 
     // Display preview
-    if (allItems.length === 0) {
+    if (previewHtml === '') {
         previewContainer.innerHTML = '<p class="preview-info">Selected templates have no items</p>';
         totalCountSpan.textContent = '0';
         return;
     }
 
-    let previewHtml = '<div class="preview-items-list">';
-    allItems.forEach((item, index) => {
-        previewHtml += `
-            <div class="preview-item">
-                <span class="item-number">${index + 1}.</span>
-                <span class="item-name">${item.name}</span>
-                <span class="item-source">from "${item.sourceTemplate}"</span>
-            </div>
-        `;
-    });
-    previewHtml += '</div>';
-
     previewContainer.innerHTML = previewHtml;
-    totalCountSpan.textContent = allItems.length;
+    totalCountSpan.textContent = totalItemCount;
+
+    // Add event listeners to collapse toggle buttons in preview
+    previewContainer.querySelectorAll('.collapse-toggle').forEach(button => {
+        button.addEventListener('click', function() {
+            const collapseId = this.getAttribute('data-collapse-id');
+            const sectionContent = document.getElementById(collapseId);
+            const icon = this.querySelector('i');
+            
+            if (sectionContent) {
+                sectionContent.classList.toggle('collapsed');
+                
+                if (sectionContent.classList.contains('collapsed')) {
+                    icon.classList.remove('fa-chevron-down');
+                    icon.classList.add('fa-chevron-right');
+                } else {
+                    icon.classList.remove('fa-chevron-right');
+                    icon.classList.add('fa-chevron-down');
+                }
+            }
+        });
+    });
 }
 
 // Create combined template
@@ -1880,19 +2416,43 @@ function createCombinedTemplate() {
 
         if (template && template.items) {
             const sectionItems = [];
-            
-            template.items.forEach(item => {
-                // Avoid duplicate items (by name)
-                const itemKey = item.name.toLowerCase();
-                if (!seenItems.has(itemKey)) {
-                    seenItems.add(itemKey);
-                    sectionItems.push({
-                        id: Date.now() + Math.random(), // Unique ID
-                        name: item.name,
-                        description: item.description || ''
-                    });
-                }
-            });
+
+            // Handle both flat items and grouped items (combined templates)
+            if (template.items[0] && template.items[0].section && template.items[0].items) {
+                // This is a combined template with grouped items - flatten them
+                template.items.forEach(sectionGroup => {
+                    if (sectionGroup.items) {
+                        sectionGroup.items.forEach(item => {
+                            if (item.name) {
+                                const itemKey = item.name.toLowerCase();
+                                if (!seenItems.has(itemKey)) {
+                                    seenItems.add(itemKey);
+                                    sectionItems.push({
+                                        id: Date.now() + Math.random(),
+                                        name: item.name,
+                                        description: item.description || ''
+                                    });
+                                }
+                            }
+                        });
+                    }
+                });
+            } else {
+                // Regular template with flat items
+                template.items.forEach(item => {
+                    if (item && item.name) {
+                        const itemKey = item.name.toLowerCase();
+                        if (!seenItems.has(itemKey)) {
+                            seenItems.add(itemKey);
+                            sectionItems.push({
+                                id: Date.now() + Math.random(),
+                                name: item.name,
+                                description: item.description || ''
+                            });
+                        }
+                    }
+                });
+            }
 
             // Only add section if it has items
             if (sectionItems.length > 0) {

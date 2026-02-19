@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Edit Template - Construction Quality Control</title>
     <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 </head>
 <body>
     <nav class="navbar">
@@ -36,13 +37,43 @@
 
         <main>
             <div class="template-editor">
-                <h2>Add Deficiency Items</h2>
+                <h2>Add Content</h2>
                 <div class="add-item-section">
                     <div class="form-group">
-                        <label for="item-name">Item Name:</label>
-                        <input type="text" id="item-name" placeholder="e.g., Wall Plate Alignment">
+                        <label>Add Type:</label>
+                        <div class="add-type-selector">
+                            <label class="radio-label">
+                                <input type="radio" name="add-type" value="section" checked>
+                                <span>Section</span>
+                            </label>
+                            <label class="radio-label">
+                                <input type="radio" name="add-type" value="item">
+                                <span>Item (No Section)</span>
+                            </label>
+                        </div>
                     </div>
-                    <button id="add-item-btn" class="btn-primary">Add Item</button>
+                    
+                    <!-- Section Mode Form -->
+                    <div id="section-mode-form">
+                        <div class="form-group" id="section-name-group">
+                            <label for="section-name">Section Name:</label>
+                            <input type="text" id="section-name" placeholder="e.g., Framing, Electrical, Plumbing">
+                        </div>
+                        <div class="form-actions">
+                            <button id="add-section-btn" class="btn-primary">Add Section</button>
+                        </div>
+                    </div>
+                    
+                    <!-- Item Mode Form -->
+                    <div id="item-mode-form" style="display: none;">
+                        <div class="form-group">
+                            <label for="item-name-flat">Item Name:</label>
+                            <input type="text" id="item-name-flat" placeholder="e.g., Wall Plate Alignment">
+                        </div>
+                        <div class="form-actions">
+                            <button id="add-item-flat-btn" class="btn-secondary">Add Item</button>
+                        </div>
+                    </div>
                 </div>
 
                 <div class="template-items-list">
